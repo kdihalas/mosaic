@@ -95,6 +95,9 @@ variants, target selection in environments, and invariants in policies/tests.
   points with `extension` and security-sensitive fields with `protected`.
 - Do not resolve competing writes by reordering files or `apply` statements.
   Add an explicit environment `resolve` for the specific conflicting field.
+- Address qualified label and annotation keys with a quoted string index when
+  resolving conflicts:
+  `resolve app.workload.main.labels["example.com/tier"] = "production"`.
 
 ## Minimal pattern
 

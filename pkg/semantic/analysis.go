@@ -27,6 +27,16 @@ func Path(e ast.Expression) ([]string, bool) {
 	case *ast.MemberExpression:
 		p, ok := Path(x.Object)
 		return append(p, x.Member), ok
+	case *ast.IndexExpression:
+		p, ok := Path(x.Object)
+		if !ok {
+			return nil, false
+		}
+		key, ok := x.Index.(*ast.StringLiteral)
+		if !ok {
+			return nil, false
+		}
+		return append(p, key.Value), true
 	default:
 		return nil, false
 	}

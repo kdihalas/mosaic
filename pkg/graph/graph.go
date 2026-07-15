@@ -193,6 +193,40 @@ func (g *Graph) ReadField(id ResourceID, p FieldPath) (value.Value, bool) {
 	}
 	return read(r.Fields, p)
 }
+
+func stringMap(v value.Value) map[string]string {
+	m, ok := v.ObjectValue()
+	if !ok {
+		return nil
+	}
+	out := make(map[string]string, len(m))
+	for key, item := range m {
+		if text, ok := item.StringValue(); ok {
+			out[key] = text
+		}
+	}
+	return out
+}
+
+func syncStringMapFields(r *Resource, p FieldPath) {
+	if len(p) == 0 || p[0] == "labels" {
+		v, ok := r.Fields.Get("labels")
+		if !ok {
+			r.Labels = nil
+		} else {
+			r.Labels = stringMap(v)
+		}
+	}
+	if len(p) == 0 || p[0] == "annotations" {
+		v, ok := r.Fields.Get("annotations")
+		if !ok {
+			r.Annotations = nil
+		} else {
+			r.Annotations = stringMap(v)
+		}
+	}
+}
+
 func set(v value.Value, p FieldPath, x value.Value) (value.Value, error) {
 	if len(p) == 0 {
 		return x.Clone(), nil
@@ -239,6 +273,7 @@ func (g *Graph) SetField(id ResourceID, p FieldPath, x value.Value) error {
 		return err
 	}
 	r.Fields = next
+	syncStringMapFields(&r, p)
 	g.resources[id] = r
 	return nil
 }
@@ -257,6 +292,7 @@ func (g *Graph) DeleteField(id ResourceID, p FieldPath) error {
 		return err
 	}
 	r.Fields = next
+	syncStringMapFields(&r, p)
 	g.resources[id] = r
 	return nil
 }

@@ -148,6 +148,19 @@ environment prod {
 Competing writes are not resolved by reordering files or `apply` statements.
 Use an explicit environment `resolve` for the conflicting field.
 
+For a qualified label or annotation key, use a quoted string index:
+
+```mosaic
+environment prod {
+    use catalog
+    apply production
+    apply regionalDefaults
+
+    resolve catalog.workload.main.labels["something.com/deployment-tier"] =
+        "production"
+}
+```
+
 ## Enforce policies
 
 ```mosaic
