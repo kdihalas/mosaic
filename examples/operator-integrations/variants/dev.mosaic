@@ -1,0 +1,5 @@
+variant development {
+    set platform.resource.rollout.spec.replicas = 1
+    set platform.resource.externalSecret.spec.refreshInterval = "5m"
+    replace platform.resource.certificate.spec.dnsNames = ["catalog.dev.example.com"]
+}

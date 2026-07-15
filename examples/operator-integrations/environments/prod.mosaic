@@ -1,0 +1,11 @@
+environment prod {
+    use platform
+    apply production
+    policies {
+        use requiredOwnership
+        use stableRolloutImages
+    }
+    target kubernetes {
+        namespace = "catalog-prod"
+    }
+}

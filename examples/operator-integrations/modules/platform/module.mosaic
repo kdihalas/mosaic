@@ -1,0 +1,109 @@
+module PlatformIntegrations(input : PlatformIntegrationsInput) {
+    resource "certificate" {
+        apiVersion = "cert-manager.io/v1"
+        kind = "Certificate"
+        name = input.certificateName
+        labels {
+            "app.kubernetes.io/name" = input.applicationName
+            "app.kubernetes.io/managed-by" = "mosaic"
+            "something.com/owner" = input.owner
+        }
+        spec {
+            secretName = input.certificateSecretName
+            dnsNames = input.dnsNames
+            duration = "2160h"
+            renewBefore = "360h"
+            issuerRef {
+                name = input.issuerName
+                kind = "ClusterIssuer"
+                group = "cert-manager.io"
+            }
+        }
+    }
+
+    resource "serviceMonitor" {
+        apiVersion = "monitoring.coreos.com/v1"
+        kind = "ServiceMonitor"
+        name = input.serviceMonitorName
+        labels {
+            team = input.owner
+            "app.kubernetes.io/name" = input.applicationName
+            "something.com/owner" = input.owner
+        }
+        spec {
+            selector {
+                matchLabels {
+                    "app.kubernetes.io/name" = input.applicationName
+                }
+            }
+            endpoints = [{ port = "metrics", path = "/metrics", interval = "30s" }]
+        }
+    }
+
+    resource "externalSecret" {
+        apiVersion = "external-secrets.io/v1"
+        kind = "ExternalSecret"
+        name = input.externalSecretName
+        labels {
+            "app.kubernetes.io/name" = input.applicationName
+            "something.com/owner" = input.owner
+        }
+        spec {
+            refreshPolicy = "Periodic"
+            refreshInterval = "1h"
+            secretStoreRef {
+                name = input.secretStoreName
+                kind = "ClusterSecretStore"
+            }
+            target {
+                name = input.externalSecretName
+                creationPolicy = "Owner"
+            }
+            data = [{ secretKey = "database-url", remoteRef = { key = input.remoteSecretKey, property = "url" } }]
+        }
+    }
+
+    resource "rollout" {
+        apiVersion = "argoproj.io/v1alpha1"
+        kind = "Rollout"
+        name = input.rolloutName
+        labels {
+            "app.kubernetes.io/name" = input.applicationName
+            "something.com/owner" = input.owner
+        }
+        spec {
+            replicas = input.replicas
+            selector {
+                matchLabels {
+                    "app.kubernetes.io/name" = input.applicationName
+                }
+            }
+            template {
+                metadata {
+                    labels {
+                        "app.kubernetes.io/name" = input.applicationName
+                    }
+                }
+                spec {
+                    containers = [{ name = input.applicationName, image = input.image, ports = [{ name = "http", containerPort = 8080 }] }]
+                }
+            }
+            strategy {
+                canary {
+                    maxSurge = "25%"
+                    maxUnavailable = 0
+                    steps = [{ setWeight = 20 }, { pause = { duration = "5m" } }, { setWeight = 50 }, { pause = { } }]
+                }
+            }
+        }
+    }
+
+    export resource.certificate
+    export resource.serviceMonitor
+    export resource.externalSecret
+    export resource.rollout
+    extension resource.certificate.spec.dnsNames
+    extension resource.externalSecret.spec.refreshInterval
+    extension resource.rollout.spec.replicas
+    extension resource.rollout.spec.strategy
+}

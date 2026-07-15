@@ -1,0 +1,15 @@
+type PlatformIntegrationsInput {
+    applicationName : ResourceName
+    image : ImageReference
+    owner : string
+    certificateName : ResourceName
+    certificateSecretName : ResourceName
+    dnsNames : list < string >
+    issuerName : ResourceName
+    serviceMonitorName : ResourceName
+    externalSecretName : ResourceName
+    secretStoreName : ResourceName
+    remoteSecretKey : string
+    rolloutName : ResourceName
+    replicas : int
+}

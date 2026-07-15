@@ -1,0 +1,15 @@
+policy requiredOwnership {
+    select Resource {
+        require labels ["something.com/owner"] != null {
+            message = "Every custom resource must have an owner label."
+        }
+    }
+}
+
+policy stableRolloutImages {
+    select Resource where kind == "Rollout" {
+        deny spec.template.spec.containers [0].image.endsWith(":latest") {
+            message = "Argo Rollouts must use an immutable image tag."
+        }
+    }
+}

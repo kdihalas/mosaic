@@ -390,6 +390,8 @@ func coreType(k string) graph.TypeName {
 		return "core.Workload"
 	case "expose", "exposure":
 		return "core.Exposure"
+	case "resource":
+		return "kubernetes.CustomResource"
 	default:
 		return graph.TypeName("core." + strings.ToUpper(k[:1]) + k[1:])
 	}

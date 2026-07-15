@@ -18,3 +18,34 @@ labels {
     "app.kubernetes.io/name" = input.name
 }
 ```
+
+## Kubernetes custom resources
+
+Use an explicit `resource` declaration when an installed Kubernetes operator
+owns the schema:
+
+```mosaic
+resource "serviceMonitor" {
+    apiVersion = "monitoring.coreos.com/v1"
+    kind = "ServiceMonitor"
+    name = input.monitorName
+    labels {
+        "app.kubernetes.io/name" = input.name
+    }
+    spec {
+        selector {
+            matchLabels {
+                "app.kubernetes.io/name" = input.name
+            }
+        }
+        endpoints = [{ port = "metrics", interval = "30s" }]
+    }
+}
+```
+
+The local quoted name creates the stable ID
+`application.<alias>.resource.<local-name>`; keep it identifier-compatible so
+variants can address it. `apiVersion`, `kind`, and `name` are required. Mosaic
+preserves nested scalar types, provenance, variants, policies, diffs, and
+deterministic rendering. It does not install the CRD or replace validation by
+the operator's current OpenAPI schema.

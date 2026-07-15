@@ -2,6 +2,7 @@ package mosaic_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/kdihalas/mosaic/pkg/compiler"
@@ -32,6 +33,31 @@ func TestCatalogEnvironments(t *testing.T) {
 		}
 		if len(a.Files["kubernetes.yaml"]) == 0 {
 			t.Fatal("empty YAML")
+		}
+	}
+}
+
+func TestOperatorIntegrations(t *testing.T) {
+	ctx := context.Background()
+	p, ds := project.Load(ctx, "examples/operator-integrations", project.LoadOptions{})
+	if ds.HasErrors() {
+		t.Fatalf("load: %#v", ds)
+	}
+	r, ds := compiler.New(compiler.NewOptions{}).Compile(ctx, p, compiler.Options{Environment: "prod"})
+	if ds.HasErrors() {
+		t.Fatalf("compile: %#v", ds)
+	}
+	if got := len(r.Graph.List()); got != 4 {
+		t.Fatalf("resources=%d want 4", got)
+	}
+	a, ds := kubernetes.New().Render(ctx, renderer.RenderInput{Environment: r.Environment, Graph: r.Graph, Provenance: r.Provenance, Options: r.Metadata.TargetOptions})
+	if ds.HasErrors() {
+		t.Fatalf("render: %#v", ds)
+	}
+	yaml := string(a.Files["kubernetes.yaml"])
+	for _, kind := range []string{"Certificate", "ServiceMonitor", "ExternalSecret", "Rollout"} {
+		if !strings.Contains(yaml, "kind: "+kind) {
+			t.Errorf("missing %s", kind)
 		}
 	}
 }

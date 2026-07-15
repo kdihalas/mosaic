@@ -41,3 +41,21 @@ func TestTypedNumbersAreNotQuotedInYAML(t *testing.T) {
 		t.Fatal("JSON replica count was quoted")
 	}
 }
+
+func TestCustomResourceRendering(t *testing.T) {
+	g := graph.New()
+	fields := value.Object(map[string]value.Value{"apiVersion": value.String("monitoring.coreos.com/v1"), "kind": value.String("ServiceMonitor"), "name": value.String("catalog-metrics"), "spec": value.Object(map[string]value.Value{"endpoints": value.List([]value.Value{value.Object(map[string]value.Value{"port": value.String("metrics"), "interval": value.String("30s")})})})})
+	if err := g.Add(graph.Resource{ID: "application.catalog.resource.monitor", Type: "kubernetes.CustomResource", Name: "catalog-metrics", Fields: fields}); err != nil {
+		t.Fatal(err)
+	}
+	a, ds := kubernetes.New().Render(context.Background(), renderer.RenderInput{Environment: "prod", Graph: g, Options: value.Object(nil)})
+	if ds.HasErrors() {
+		t.Fatalf("%#v", ds)
+	}
+	y := string(a.Files["kubernetes.yaml"])
+	for _, want := range []string{"apiVersion: monitoring.coreos.com/v1", "kind: ServiceMonitor", "interval: 30s"} {
+		if !strings.Contains(y, want) {
+			t.Fatalf("missing %q in:\n%s", want, y)
+		}
+	}
+}

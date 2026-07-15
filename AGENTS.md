@@ -79,9 +79,15 @@ variants, target selection in environments, and invariants in policies/tests.
 - Give every resource a stable local name. Its graph identity becomes
   `application.<application-alias>.<resource-kind>.<local-name>` and must not
   depend on a filename or rendered Kubernetes name.
-- Use only the supported backend-neutral resource declarations: `config`,
+- Prefer the supported backend-neutral declarations: `config`,
   `serviceAccount`, `workload`, and `expose`. Enable `autoscaling` and
-  `disruptionProtection` as capabilities in variants.
+  `disruptionProtection` as capabilities in variants. For an installed
+  Kubernetes operator, use the explicit `resource` form documented in
+  `docs/language.md`; verify its `apiVersion`, `kind`, and `spec` against the
+  operator's official current documentation.
+- Keep a custom resource's quoted local ID identifier-compatible (for example,
+  `serviceMonitor`, not `service-monitor`) so variants and tests can address
+  `application.<alias>.resource.<local-id>` with dot paths.
 - Supply every module input referenced by the module. Prefer block input syntax
   for nested objects, but never use both block and assignment forms for one
   field.

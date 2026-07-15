@@ -1,0 +1,8 @@
+variant production {
+    set platform.resource.rollout.spec.replicas = 5
+    set platform.resource.externalSecret.spec.refreshInterval = "15m"
+    replace platform.resource.certificate.spec.dnsNames = ["catalog.example.com", "api.catalog.example.com"]
+    merge platform.resource.rollout.labels {
+        "something.com/deployment-tier" = "production"
+    }
+}

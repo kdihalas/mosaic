@@ -1,0 +1,11 @@
+environment dev {
+    use platform
+    apply development
+    policies {
+        use requiredOwnership
+        use stableRolloutImages
+    }
+    target kubernetes {
+        namespace = "catalog-dev"
+    }
+}

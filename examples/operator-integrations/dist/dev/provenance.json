@@ -1,0 +1,751 @@
+[
+  {
+    "sequence": 1,
+    "resourceId": "application.platform.resource.certificate",
+    "action": "resource-created",
+    "previous": null,
+    "current": {
+      "apiVersion": "cert-manager.io/v1",
+      "kind": "Certificate",
+      "labels": {
+        "app.kubernetes.io/managed-by": "mosaic",
+        "app.kubernetes.io/name": "catalog-api",
+        "something.com/owner": "catalog-team"
+      },
+      "name": "catalog-api-tls",
+      "spec": {
+        "dnsNames": [
+          "catalog.example.com"
+        ],
+        "duration": "2160h",
+        "issuerRef": {
+          "group": "cert-manager.io",
+          "kind": "ClusterIssuer",
+          "name": "letsencrypt-production"
+        },
+        "renewBefore": "360h",
+        "secretName": "catalog-api-tls"
+      }
+    },
+    "owner": {
+      "kind": "module",
+      "name": "PlatformIntegrations"
+    },
+    "source": {
+      "sourceName": "modules/platform/module.mosaic",
+      "start": {
+        "offset": 69,
+        "line": 2,
+        "column": 5
+      },
+      "end": {
+        "offset": 736,
+        "line": 22,
+        "column": 6
+      }
+    }
+  },
+  {
+    "sequence": 2,
+    "resourceId": "application.platform.resource.certificate",
+    "fieldPath": [
+      "apiVersion"
+    ],
+    "action": "module-assigned",
+    "previous": null,
+    "current": "cert-manager.io/v1",
+    "owner": {
+      "kind": "module",
+      "name": "PlatformIntegrations"
+    },
+    "source": {
+      "sourceName": "modules/platform/module.mosaic",
+      "start": {
+        "offset": 102,
+        "line": 3,
+        "column": 9
+      },
+      "end": {
+        "offset": 135,
+        "line": 3,
+        "column": 42
+      }
+    }
+  },
+  {
+    "sequence": 3,
+    "resourceId": "application.platform.resource.certificate",
+    "fieldPath": [
+      "kind"
+    ],
+    "action": "module-assigned",
+    "previous": null,
+    "current": "Certificate",
+    "owner": {
+      "kind": "module",
+      "name": "PlatformIntegrations"
+    },
+    "source": {
+      "sourceName": "modules/platform/module.mosaic",
+      "start": {
+        "offset": 144,
+        "line": 4,
+        "column": 9
+      },
+      "end": {
+        "offset": 164,
+        "line": 4,
+        "column": 29
+      }
+    }
+  },
+  {
+    "sequence": 4,
+    "resourceId": "application.platform.resource.certificate",
+    "fieldPath": [
+      "name"
+    ],
+    "action": "input-supplied",
+    "previous": null,
+    "current": "catalog-api-tls",
+    "owner": {
+      "kind": "application",
+      "name": "platform"
+    },
+    "source": {
+      "sourceName": "applications/catalog.mosaic",
+      "start": {
+        "offset": 151,
+        "line": 5,
+        "column": 5
+      },
+      "end": {
+        "offset": 186,
+        "line": 5,
+        "column": 40
+      }
+    }
+  },
+  {
+    "sequence": 5,
+    "resourceId": "application.platform.resource.certificate",
+    "fieldPath": [
+      "name"
+    ],
+    "action": "module-assigned",
+    "previous": null,
+    "current": "catalog-api-tls",
+    "owner": {
+      "kind": "module",
+      "name": "PlatformIntegrations"
+    },
+    "source": {
+      "sourceName": "modules/platform/module.mosaic",
+      "start": {
+        "offset": 173,
+        "line": 5,
+        "column": 9
+      },
+      "end": {
+        "offset": 201,
+        "line": 5,
+        "column": 37
+      }
+    }
+  },
+  {
+    "sequence": 6,
+    "resourceId": "application.platform.resource.serviceMonitor",
+    "action": "resource-created",
+    "previous": null,
+    "current": {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "ServiceMonitor",
+      "labels": {
+        "app.kubernetes.io/name": "catalog-api",
+        "something.com/owner": "catalog-team",
+        "team": "catalog-team"
+      },
+      "name": "catalog-api",
+      "spec": {
+        "endpoints": [
+          {
+            "interval": "30s",
+            "path": "/metrics",
+            "port": "metrics"
+          }
+        ],
+        "selector": {
+          "matchLabels": {
+            "app.kubernetes.io/name": "catalog-api"
+          }
+        }
+      }
+    },
+    "owner": {
+      "kind": "module",
+      "name": "PlatformIntegrations"
+    },
+    "source": {
+      "sourceName": "modules/platform/module.mosaic",
+      "start": {
+        "offset": 742,
+        "line": 24,
+        "column": 5
+      },
+      "end": {
+        "offset": 1325,
+        "line": 41,
+        "column": 6
+      }
+    }
+  },
+  {
+    "sequence": 7,
+    "resourceId": "application.platform.resource.serviceMonitor",
+    "fieldPath": [
+      "apiVersion"
+    ],
+    "action": "module-assigned",
+    "previous": null,
+    "current": "monitoring.coreos.com/v1",
+    "owner": {
+      "kind": "module",
+      "name": "PlatformIntegrations"
+    },
+    "source": {
+      "sourceName": "modules/platform/module.mosaic",
+      "start": {
+        "offset": 778,
+        "line": 25,
+        "column": 9
+      },
+      "end": {
+        "offset": 817,
+        "line": 25,
+        "column": 48
+      }
+    }
+  },
+  {
+    "sequence": 8,
+    "resourceId": "application.platform.resource.serviceMonitor",
+    "fieldPath": [
+      "kind"
+    ],
+    "action": "module-assigned",
+    "previous": null,
+    "current": "ServiceMonitor",
+    "owner": {
+      "kind": "module",
+      "name": "PlatformIntegrations"
+    },
+    "source": {
+      "sourceName": "modules/platform/module.mosaic",
+      "start": {
+        "offset": 826,
+        "line": 26,
+        "column": 9
+      },
+      "end": {
+        "offset": 849,
+        "line": 26,
+        "column": 32
+      }
+    }
+  },
+  {
+    "sequence": 9,
+    "resourceId": "application.platform.resource.serviceMonitor",
+    "fieldPath": [
+      "name"
+    ],
+    "action": "input-supplied",
+    "previous": null,
+    "current": "catalog-api",
+    "owner": {
+      "kind": "application",
+      "name": "platform"
+    },
+    "source": {
+      "sourceName": "applications/catalog.mosaic",
+      "start": {
+        "offset": 318,
+        "line": 9,
+        "column": 5
+      },
+      "end": {
+        "offset": 352,
+        "line": 9,
+        "column": 39
+      }
+    }
+  },
+  {
+    "sequence": 10,
+    "resourceId": "application.platform.resource.serviceMonitor",
+    "fieldPath": [
+      "name"
+    ],
+    "action": "module-assigned",
+    "previous": null,
+    "current": "catalog-api",
+    "owner": {
+      "kind": "module",
+      "name": "PlatformIntegrations"
+    },
+    "source": {
+      "sourceName": "modules/platform/module.mosaic",
+      "start": {
+        "offset": 858,
+        "line": 27,
+        "column": 9
+      },
+      "end": {
+        "offset": 889,
+        "line": 27,
+        "column": 40
+      }
+    }
+  },
+  {
+    "sequence": 11,
+    "resourceId": "application.platform.resource.externalSecret",
+    "action": "resource-created",
+    "previous": null,
+    "current": {
+      "apiVersion": "external-secrets.io/v1",
+      "kind": "ExternalSecret",
+      "labels": {
+        "app.kubernetes.io/name": "catalog-api",
+        "something.com/owner": "catalog-team"
+      },
+      "name": "catalog-api-secrets",
+      "spec": {
+        "data": [
+          {
+            "remoteRef": {
+              "key": "platform/catalog-api",
+              "property": "url"
+            },
+            "secretKey": "database-url"
+          }
+        ],
+        "refreshInterval": "1h",
+        "refreshPolicy": "Periodic",
+        "secretStoreRef": {
+          "kind": "ClusterSecretStore",
+          "name": "production-secrets"
+        },
+        "target": {
+          "creationPolicy": "Owner",
+          "name": "catalog-api-secrets"
+        }
+      }
+    },
+    "owner": {
+      "kind": "module",
+      "name": "PlatformIntegrations"
+    },
+    "source": {
+      "sourceName": "modules/platform/module.mosaic",
+      "start": {
+        "offset": 1331,
+        "line": 43,
+        "column": 5
+      },
+      "end": {
+        "offset": 2088,
+        "line": 64,
+        "column": 6
+      }
+    }
+  },
+  {
+    "sequence": 12,
+    "resourceId": "application.platform.resource.externalSecret",
+    "fieldPath": [
+      "apiVersion"
+    ],
+    "action": "module-assigned",
+    "previous": null,
+    "current": "external-secrets.io/v1",
+    "owner": {
+      "kind": "module",
+      "name": "PlatformIntegrations"
+    },
+    "source": {
+      "sourceName": "modules/platform/module.mosaic",
+      "start": {
+        "offset": 1367,
+        "line": 44,
+        "column": 9
+      },
+      "end": {
+        "offset": 1404,
+        "line": 44,
+        "column": 46
+      }
+    }
+  },
+  {
+    "sequence": 13,
+    "resourceId": "application.platform.resource.externalSecret",
+    "fieldPath": [
+      "kind"
+    ],
+    "action": "module-assigned",
+    "previous": null,
+    "current": "ExternalSecret",
+    "owner": {
+      "kind": "module",
+      "name": "PlatformIntegrations"
+    },
+    "source": {
+      "sourceName": "modules/platform/module.mosaic",
+      "start": {
+        "offset": 1413,
+        "line": 45,
+        "column": 9
+      },
+      "end": {
+        "offset": 1436,
+        "line": 45,
+        "column": 32
+      }
+    }
+  },
+  {
+    "sequence": 14,
+    "resourceId": "application.platform.resource.externalSecret",
+    "fieldPath": [
+      "name"
+    ],
+    "action": "input-supplied",
+    "previous": null,
+    "current": "catalog-api-secrets",
+    "owner": {
+      "kind": "application",
+      "name": "platform"
+    },
+    "source": {
+      "sourceName": "applications/catalog.mosaic",
+      "start": {
+        "offset": 357,
+        "line": 10,
+        "column": 5
+      },
+      "end": {
+        "offset": 399,
+        "line": 10,
+        "column": 47
+      }
+    }
+  },
+  {
+    "sequence": 15,
+    "resourceId": "application.platform.resource.externalSecret",
+    "fieldPath": [
+      "name"
+    ],
+    "action": "module-assigned",
+    "previous": null,
+    "current": "catalog-api-secrets",
+    "owner": {
+      "kind": "module",
+      "name": "PlatformIntegrations"
+    },
+    "source": {
+      "sourceName": "modules/platform/module.mosaic",
+      "start": {
+        "offset": 1445,
+        "line": 46,
+        "column": 9
+      },
+      "end": {
+        "offset": 1476,
+        "line": 46,
+        "column": 40
+      }
+    }
+  },
+  {
+    "sequence": 16,
+    "resourceId": "application.platform.resource.rollout",
+    "action": "resource-created",
+    "previous": null,
+    "current": {
+      "apiVersion": "argoproj.io/v1alpha1",
+      "kind": "Rollout",
+      "labels": {
+        "app.kubernetes.io/name": "catalog-api",
+        "something.com/owner": "catalog-team"
+      },
+      "name": "catalog-api",
+      "spec": {
+        "replicas": 2,
+        "selector": {
+          "matchLabels": {
+            "app.kubernetes.io/name": "catalog-api"
+          }
+        },
+        "strategy": {
+          "canary": {
+            "maxSurge": "25%",
+            "maxUnavailable": 0,
+            "steps": [
+              {
+                "setWeight": 20
+              },
+              {
+                "pause": {
+                  "duration": "5m"
+                }
+              },
+              {
+                "setWeight": 50
+              },
+              {
+                "pause": {}
+              }
+            ]
+          }
+        },
+        "template": {
+          "metadata": {
+            "labels": {
+              "app.kubernetes.io/name": "catalog-api"
+            }
+          },
+          "spec": {
+            "containers": [
+              {
+                "image": "ghcr.io/acme/catalog-api:2.0.0",
+                "name": "catalog-api",
+                "ports": [
+                  {
+                    "containerPort": 8080,
+                    "name": "http"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    "owner": {
+      "kind": "module",
+      "name": "PlatformIntegrations"
+    },
+    "source": {
+      "sourceName": "modules/platform/module.mosaic",
+      "start": {
+        "offset": 2094,
+        "line": 66,
+        "column": 5
+      },
+      "end": {
+        "offset": 3237,
+        "line": 99,
+        "column": 6
+      }
+    }
+  },
+  {
+    "sequence": 17,
+    "resourceId": "application.platform.resource.rollout",
+    "fieldPath": [
+      "apiVersion"
+    ],
+    "action": "module-assigned",
+    "previous": null,
+    "current": "argoproj.io/v1alpha1",
+    "owner": {
+      "kind": "module",
+      "name": "PlatformIntegrations"
+    },
+    "source": {
+      "sourceName": "modules/platform/module.mosaic",
+      "start": {
+        "offset": 2123,
+        "line": 67,
+        "column": 9
+      },
+      "end": {
+        "offset": 2158,
+        "line": 67,
+        "column": 44
+      }
+    }
+  },
+  {
+    "sequence": 18,
+    "resourceId": "application.platform.resource.rollout",
+    "fieldPath": [
+      "kind"
+    ],
+    "action": "module-assigned",
+    "previous": null,
+    "current": "Rollout",
+    "owner": {
+      "kind": "module",
+      "name": "PlatformIntegrations"
+    },
+    "source": {
+      "sourceName": "modules/platform/module.mosaic",
+      "start": {
+        "offset": 2167,
+        "line": 68,
+        "column": 9
+      },
+      "end": {
+        "offset": 2183,
+        "line": 68,
+        "column": 25
+      }
+    }
+  },
+  {
+    "sequence": 19,
+    "resourceId": "application.platform.resource.rollout",
+    "fieldPath": [
+      "name"
+    ],
+    "action": "input-supplied",
+    "previous": null,
+    "current": "catalog-api",
+    "owner": {
+      "kind": "application",
+      "name": "platform"
+    },
+    "source": {
+      "sourceName": "applications/catalog.mosaic",
+      "start": {
+        "offset": 492,
+        "line": 13,
+        "column": 5
+      },
+      "end": {
+        "offset": 519,
+        "line": 13,
+        "column": 32
+      }
+    }
+  },
+  {
+    "sequence": 20,
+    "resourceId": "application.platform.resource.rollout",
+    "fieldPath": [
+      "name"
+    ],
+    "action": "module-assigned",
+    "previous": null,
+    "current": "catalog-api",
+    "owner": {
+      "kind": "module",
+      "name": "PlatformIntegrations"
+    },
+    "source": {
+      "sourceName": "modules/platform/module.mosaic",
+      "start": {
+        "offset": 2192,
+        "line": 69,
+        "column": 9
+      },
+      "end": {
+        "offset": 2216,
+        "line": 69,
+        "column": 33
+      }
+    }
+  },
+  {
+    "sequence": 21,
+    "resourceId": "application.platform.resource.rollout",
+    "fieldPath": [
+      "spec",
+      "replicas"
+    ],
+    "action": "variant-set",
+    "previous": 2,
+    "current": 1,
+    "owner": {
+      "kind": "variant",
+      "name": "development"
+    },
+    "source": {
+      "sourceName": "variants/dev.mosaic",
+      "start": {
+        "offset": 26,
+        "line": 2,
+        "column": 5
+      },
+      "end": {
+        "offset": 73,
+        "line": 2,
+        "column": 52
+      }
+    }
+  },
+  {
+    "sequence": 22,
+    "resourceId": "application.platform.resource.externalSecret",
+    "fieldPath": [
+      "spec",
+      "refreshInterval"
+    ],
+    "action": "variant-set",
+    "previous": "1h",
+    "current": "5m",
+    "owner": {
+      "kind": "variant",
+      "name": "development"
+    },
+    "source": {
+      "sourceName": "variants/dev.mosaic",
+      "start": {
+        "offset": 78,
+        "line": 3,
+        "column": 5
+      },
+      "end": {
+        "offset": 142,
+        "line": 3,
+        "column": 69
+      }
+    }
+  },
+  {
+    "sequence": 23,
+    "resourceId": "application.platform.resource.certificate",
+    "fieldPath": [
+      "spec",
+      "dnsNames"
+    ],
+    "action": "variant-set",
+    "previous": [
+      "catalog.example.com"
+    ],
+    "current": [
+      "catalog.dev.example.com"
+    ],
+    "owner": {
+      "kind": "variant",
+      "name": "development"
+    },
+    "source": {
+      "sourceName": "variants/dev.mosaic",
+      "start": {
+        "offset": 147,
+        "line": 4,
+        "column": 5
+      },
+      "end": {
+        "offset": 228,
+        "line": 4,
+        "column": 86
+      }
+    }
+  }
+]

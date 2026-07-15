@@ -1,0 +1,14 @@
+test productionScalesRollout {
+    build prod
+    assert platform.resource.rollout.spec.replicas == 5
+}
+
+test productionUsesAdditionalDNSName {
+    build prod
+    assert platform.resource.certificate.spec.dnsNames [1] == "api.catalog.example.com"
+}
+
+test devRefreshesSecretsFrequently {
+    build dev
+    assert platform.resource.externalSecret.spec.refreshInterval == "5m"
+}

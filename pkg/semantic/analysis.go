@@ -84,6 +84,17 @@ func Evaluate(e ast.Expression, c Context) (value.Value, error) {
 		if err != nil {
 			return value.Value{}, err
 		}
+		if list, ok := o.ListValue(); ok {
+			index, isInt := k.IntValue()
+			if !isInt || !index.IsInt64() {
+				return value.Null(), nil
+			}
+			i := index.Int64()
+			if i >= 0 && i < int64(len(list)) {
+				return list[i], nil
+			}
+			return value.Null(), nil
+		}
 		s, _ := k.StringValue()
 		if v, ok := o.Get(s); ok {
 			return v, nil

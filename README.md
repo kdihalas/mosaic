@@ -20,6 +20,12 @@ mosaic build prod
 The catalog example renders ConfigMap, ServiceAccount, Service, and Deployment
 for dev; stage also includes an HPA; prod also includes a PDB.
 
+For custom-resource composition, [examples/operator-integrations](examples/operator-integrations)
+builds cert-manager `Certificate`, Prometheus Operator `ServiceMonitor`, External
+Secrets Operator `ExternalSecret`, and Argo Rollouts `Rollout` resources. The
+example includes typed inputs, variants, policies, tests, and deterministic
+dev/prod bundles.
+
 Commands are `init`, `fmt`, `parse`, `validate`, `build`, `inspect`, `explain`,
 `diff`, `test`, `version`, and the developer-oriented `lex`. See
 [docs/cli.md](docs/cli.md).

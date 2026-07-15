@@ -300,6 +300,11 @@ func (p *parser) statement() ast.Statement {
 		return p.rule("warn")
 	case token.KeywordSelect:
 		return p.selectStmt()
+	case token.KeywordResource:
+		p.advance()
+		name := p.expect(token.String, "custom resource local name")
+		body, end := p.body()
+		return &ast.ResourceDeclaration{Base: base(t.Span, end), Kind: "resource", Name: name.Value, Body: body}
 	case token.KeywordEnable:
 		p.advance()
 		return p.operation(t, "enable")

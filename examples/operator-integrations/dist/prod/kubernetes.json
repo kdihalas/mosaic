@@ -1,0 +1,180 @@
+{
+  "apiVersion": "v1",
+  "items": [
+    {
+      "apiVersion": "argoproj.io/v1alpha1",
+      "kind": "Rollout",
+      "metadata": {
+        "annotations": {
+          "mosaic.dev/environment": "prod",
+          "mosaic.dev/module": "PlatformIntegrations",
+          "mosaic.dev/resource-id": "application.platform.resource.rollout",
+          "mosaic.dev/source": "modules/platform/module.mosaic"
+        },
+        "labels": {
+          "app.kubernetes.io/name": "catalog-api",
+          "something.com/owner": "catalog-team"
+        },
+        "name": "catalog-api",
+        "namespace": "catalog-prod"
+      },
+      "spec": {
+        "replicas": 5,
+        "selector": {
+          "matchLabels": {
+            "app.kubernetes.io/name": "catalog-api"
+          }
+        },
+        "strategy": {
+          "canary": {
+            "maxSurge": "25%",
+            "maxUnavailable": 0,
+            "steps": [
+              {
+                "setWeight": 20
+              },
+              {
+                "pause": {
+                  "duration": "5m"
+                }
+              },
+              {
+                "setWeight": 50
+              },
+              {
+                "pause": {}
+              }
+            ]
+          }
+        },
+        "template": {
+          "metadata": {
+            "labels": {
+              "app.kubernetes.io/name": "catalog-api"
+            }
+          },
+          "spec": {
+            "containers": [
+              {
+                "image": "ghcr.io/acme/catalog-api:2.0.0",
+                "name": "catalog-api",
+                "ports": [
+                  {
+                    "containerPort": 8080,
+                    "name": "http"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "monitoring.coreos.com/v1",
+      "kind": "ServiceMonitor",
+      "metadata": {
+        "annotations": {
+          "mosaic.dev/environment": "prod",
+          "mosaic.dev/module": "PlatformIntegrations",
+          "mosaic.dev/resource-id": "application.platform.resource.serviceMonitor",
+          "mosaic.dev/source": "modules/platform/module.mosaic"
+        },
+        "labels": {
+          "app.kubernetes.io/name": "catalog-api",
+          "something.com/owner": "catalog-team",
+          "team": "catalog-team"
+        },
+        "name": "catalog-api",
+        "namespace": "catalog-prod"
+      },
+      "spec": {
+        "endpoints": [
+          {
+            "interval": "30s",
+            "path": "/metrics",
+            "port": "metrics"
+          }
+        ],
+        "selector": {
+          "matchLabels": {
+            "app.kubernetes.io/name": "catalog-api"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "external-secrets.io/v1",
+      "kind": "ExternalSecret",
+      "metadata": {
+        "annotations": {
+          "mosaic.dev/environment": "prod",
+          "mosaic.dev/module": "PlatformIntegrations",
+          "mosaic.dev/resource-id": "application.platform.resource.externalSecret",
+          "mosaic.dev/source": "modules/platform/module.mosaic"
+        },
+        "labels": {
+          "app.kubernetes.io/name": "catalog-api",
+          "something.com/owner": "catalog-team"
+        },
+        "name": "catalog-api-secrets",
+        "namespace": "catalog-prod"
+      },
+      "spec": {
+        "data": [
+          {
+            "remoteRef": {
+              "key": "platform/catalog-api",
+              "property": "url"
+            },
+            "secretKey": "database-url"
+          }
+        ],
+        "refreshInterval": "15m",
+        "refreshPolicy": "Periodic",
+        "secretStoreRef": {
+          "kind": "ClusterSecretStore",
+          "name": "production-secrets"
+        },
+        "target": {
+          "creationPolicy": "Owner",
+          "name": "catalog-api-secrets"
+        }
+      }
+    },
+    {
+      "apiVersion": "cert-manager.io/v1",
+      "kind": "Certificate",
+      "metadata": {
+        "annotations": {
+          "mosaic.dev/environment": "prod",
+          "mosaic.dev/module": "PlatformIntegrations",
+          "mosaic.dev/resource-id": "application.platform.resource.certificate",
+          "mosaic.dev/source": "modules/platform/module.mosaic"
+        },
+        "labels": {
+          "app.kubernetes.io/managed-by": "mosaic",
+          "app.kubernetes.io/name": "catalog-api",
+          "something.com/owner": "catalog-team"
+        },
+        "name": "catalog-api-tls",
+        "namespace": "catalog-prod"
+      },
+      "spec": {
+        "dnsNames": [
+          "catalog.example.com",
+          "api.catalog.example.com"
+        ],
+        "duration": "2160h",
+        "issuerRef": {
+          "group": "cert-manager.io",
+          "kind": "ClusterIssuer",
+          "name": "letsencrypt-production"
+        },
+        "renewBefore": "360h",
+        "secretName": "catalog-api-tls"
+      }
+    }
+  ],
+  "kind": "List"
+}

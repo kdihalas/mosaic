@@ -17,5 +17,9 @@ example:
 	go run ./cmd/mosaic --project ./examples/catalog-platform build stage
 	go run ./cmd/mosaic --project ./examples/catalog-platform build prod
 	go run ./cmd/mosaic --project ./examples/catalog-platform test
+	go run ./cmd/mosaic --project ./examples/operator-integrations validate
+	go run ./cmd/mosaic --project ./examples/operator-integrations build dev
+	go run ./cmd/mosaic --project ./examples/operator-integrations build prod
+	go run ./cmd/mosaic --project ./examples/operator-integrations test
 golden:
 	UPDATE_GOLDEN=1 go test ./...

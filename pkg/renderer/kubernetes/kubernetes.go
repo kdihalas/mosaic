@@ -256,6 +256,23 @@ func render(r graph.Resource, env, ns string, names map[string]string) (map[stri
 			spec["maxUnavailable"] = f["maximumUnavailable"]
 		}
 		return map[string]any{"apiVersion": "policy/v1", "kind": "PodDisruptionBudget", "metadata": meta, "spec": spec}, 6, nil
+	case "kubernetes.CustomResource":
+		apiVersion, ok := f["apiVersion"].(string)
+		if !ok || apiVersion == "" {
+			return nil, 99, fmt.Errorf("custom resource %s requires string apiVersion", r.ID)
+		}
+		kind, ok := f["kind"].(string)
+		if !ok || kind == "" {
+			return nil, 99, fmt.Errorf("custom resource %s requires string kind", r.ID)
+		}
+		out := map[string]any{"apiVersion": apiVersion, "kind": kind, "metadata": meta}
+		reserved := map[string]bool{"apiVersion": true, "kind": true, "name": true, "labels": true, "annotations": true}
+		for k, v := range f {
+			if !reserved[k] {
+				out[k] = v
+			}
+		}
+		return out, 99, nil
 	}
 	return nil, 99, fmt.Errorf("unsupported resource type %s", r.Type)
 }

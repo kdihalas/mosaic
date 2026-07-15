@@ -1,0 +1,15 @@
+use PlatformIntegrations as platform {
+    applicationName = "catalog-api"
+    image = "ghcr.io/acme/catalog-api:2.0.0"
+    owner = "catalog-team"
+    certificateName = "catalog-api-tls"
+    certificateSecretName = "catalog-api-tls"
+    dnsNames = ["catalog.example.com"]
+    issuerName = "letsencrypt-production"
+    serviceMonitorName = "catalog-api"
+    externalSecretName = "catalog-api-secrets"
+    secretStoreName = "production-secrets"
+    remoteSecretKey = "platform/catalog-api"
+    rolloutName = "catalog-api"
+    replicas = 2
+}

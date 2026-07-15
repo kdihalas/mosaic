@@ -33,6 +33,15 @@ test q { build e assert app.workload.main.replicas == 2 }
 		t.Fatalf("declarations=%d", len(f.Declarations))
 	}
 }
+
+func TestCustomResourceDeclaration(t *testing.T) {
+	f := parse(t, `module M(input: Input) { resource "monitor" { apiVersion = "monitoring.coreos.com/v1" kind = "ServiceMonitor" name = input.name spec { endpoints = [{ port = "metrics" }] } } }`)
+	m := f.Declarations[0].(*ast.ModuleDeclaration)
+	r, ok := m.Body[0].(*ast.ResourceDeclaration)
+	if !ok || r.Kind != "resource" || r.Name != "monitor" {
+		t.Fatalf("%#v", m.Body[0])
+	}
+}
 func TestExpressionPrecedence(t *testing.T) {
 	f := parse(t, `test q { assert true || false && 1 + 2 * 3 == 7 }`)
 	d := f.Declarations[0].(*ast.TestDeclaration)
