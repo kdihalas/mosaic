@@ -121,7 +121,7 @@ func (c *config) printDiagnostics(ds diagnostics.List) {
 	}
 }
 func (c *config) initCmd() *cobra.Command {
-	return &cobra.Command{Use: "init [directory]", Args: cobra.MaximumNArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+	return &cobra.Command{Use: "init [directory]", Short: "Create a complete Mosaic project", Args: cobra.MaximumNArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
 		dir := "."
 		if len(args) > 0 {
 			dir = args[0]
@@ -155,7 +155,7 @@ func (c *config) initCmd() *cobra.Command {
 }
 func (c *config) fmtCmd() *cobra.Command {
 	var check, stdout bool
-	x := &cobra.Command{Use: "fmt [paths...]", Args: cobra.ArbitraryArgs, RunE: func(cmd *cobra.Command, args []string) error {
+	x := &cobra.Command{Use: "fmt [paths...]", Short: "Format Mosaic source files", Args: cobra.ArbitraryArgs, RunE: func(cmd *cobra.Command, args []string) error {
 		p, e := c.load(cmd.Context())
 		if e != nil {
 			return e
@@ -227,7 +227,7 @@ func (c *config) fmtCmd() *cobra.Command {
 }
 func (c *config) parseCmd() *cobra.Command {
 	var trivia bool
-	x := &cobra.Command{Use: "parse [paths...]", Args: cobra.ArbitraryArgs, RunE: func(cmd *cobra.Command, args []string) error {
+	x := &cobra.Command{Use: "parse [paths...]", Short: "Parse Mosaic source and print its syntax tree", Args: cobra.ArbitraryArgs, RunE: func(cmd *cobra.Command, args []string) error {
 		p, e := c.load(cmd.Context())
 		if e != nil {
 			return e
@@ -269,7 +269,7 @@ func (c *config) parseCmd() *cobra.Command {
 	return x
 }
 func (c *config) validateCmd() *cobra.Command {
-	return &cobra.Command{Use: "validate [environment]", Args: cobra.MaximumNArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+	return &cobra.Command{Use: "validate [environment]", Short: "Validate a project or environment without rendering", Args: cobra.MaximumNArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
 		p, e := c.load(cmd.Context())
 		if e != nil {
 			return e
@@ -304,7 +304,7 @@ func (c *config) validateCmd() *cobra.Command {
 func (c *config) buildCmd() *cobra.Command {
 	var output string
 	var clean bool
-	x := &cobra.Command{Use: "build <environment>", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+	x := &cobra.Command{Use: "build <environment>", Short: "Compile an environment into a deterministic bundle", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
 		r, e := c.compile(cmd.Context(), args[0])
 		if e != nil {
 			return e
@@ -346,7 +346,7 @@ func (c *config) buildCmd() *cobra.Command {
 }
 func (c *config) inspectCmd() *cobra.Command {
 	var resourceID, phase string
-	x := &cobra.Command{Use: "inspect <environment>", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+	x := &cobra.Command{Use: "inspect <environment>", Short: "Inspect graph state at a compiler phase", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
 		r, e := c.compile(cmd.Context(), args[0])
 		if e != nil {
 			return e
@@ -377,7 +377,7 @@ func (c *config) inspectCmd() *cobra.Command {
 	return x
 }
 func (c *config) explainCmd() *cobra.Command {
-	return &cobra.Command{Use: "explain <environment> <resource-id> [field-path]", Args: cobra.RangeArgs(2, 3), RunE: func(cmd *cobra.Command, args []string) error {
+	return &cobra.Command{Use: "explain <environment> <resource-id> [field-path]", Short: "Explain a resource or field using provenance", Args: cobra.RangeArgs(2, 3), RunE: func(cmd *cobra.Command, args []string) error {
 		r, e := c.compile(cmd.Context(), args[0])
 		if e != nil {
 			return e
@@ -408,7 +408,7 @@ func (c *config) explainCmd() *cobra.Command {
 }
 func (c *config) diffCmd() *cobra.Command {
 	var fail bool
-	x := &cobra.Command{Use: "diff <old-bundle> <new-bundle>", Args: cobra.ExactArgs(2), RunE: func(cmd *cobra.Command, args []string) error {
+	x := &cobra.Command{Use: "diff <old-bundle> <new-bundle>", Short: "Compare two bundles semantically", Args: cobra.ExactArgs(2), RunE: func(cmd *cobra.Command, args []string) error {
 		a, ds := bundle.ReadDirectory(cmd.Context(), args[0])
 		if ds.HasErrors() {
 			c.printDiagnostics(ds)
@@ -434,7 +434,7 @@ func (c *config) diffCmd() *cobra.Command {
 	return x
 }
 func (c *config) testCmd() *cobra.Command {
-	return &cobra.Command{Use: "test [paths...]", Args: cobra.ArbitraryArgs, RunE: func(cmd *cobra.Command, args []string) error {
+	return &cobra.Command{Use: "test [paths...]", Short: "Run Mosaic configuration tests", Args: cobra.ArbitraryArgs, RunE: func(cmd *cobra.Command, args []string) error {
 		p, e := c.load(cmd.Context())
 		if e != nil {
 			return e
@@ -470,7 +470,7 @@ func (c *config) testCmd() *cobra.Command {
 	}}
 }
 func (c *config) versionCmd() *cobra.Command {
-	return &cobra.Command{Use: "version", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
+	return &cobra.Command{Use: "version", Short: "Print compiler, language, and bundle versions", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
 		if c.format == "json" {
 			writef(c.s.out, "{\"version\":%q,\"languageVersion\":%q,\"bundleFormat\":%q}\n", Version, LanguageVersion, bundle.FormatVersion)
 		} else {
@@ -480,7 +480,7 @@ func (c *config) versionCmd() *cobra.Command {
 	}}
 }
 func (c *config) lexCmd() *cobra.Command {
-	return &cobra.Command{Use: "lex <file>", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+	return &cobra.Command{Use: "lex <file>", Short: "Print tokens from the existing Mosaic lexer", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
 		b, e := os.ReadFile(args[0])
 		if e != nil {
 			return exitError{3, e}

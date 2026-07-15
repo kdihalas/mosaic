@@ -35,3 +35,20 @@ func TestInitValidateBuildAndVersion(t *testing.T) {
 		t.Fatalf("version %d %s", c, e)
 	}
 }
+
+func TestEverySubcommandHasDescription(t *testing.T) {
+	c := &config{s: streams{in: bytes.NewReader(nil), out: &bytes.Buffer{}, err: &bytes.Buffer{}}}
+	want := map[string]bool{"init": true, "fmt": true, "parse": true, "validate": true, "build": true, "inspect": true, "explain": true, "diff": true, "test": true, "version": true, "lex": true}
+	for _, cmd := range c.root().Commands() {
+		if !want[cmd.Name()] {
+			continue
+		}
+		if cmd.Short == "" {
+			t.Errorf("command %q has no description", cmd.Name())
+		}
+		delete(want, cmd.Name())
+	}
+	for name := range want {
+		t.Errorf("command %q is not registered", name)
+	}
+}
