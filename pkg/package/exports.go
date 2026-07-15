@@ -10,6 +10,7 @@ type ExportSet struct {
 	Variants     []string `toml:"variants,omitempty" json:"variants,omitempty"`
 	Transforms   []string `toml:"transforms,omitempty" json:"transforms,omitempty"`
 	Policies     []string `toml:"policies,omitempty" json:"policies,omitempty"`
+	Environments []string `toml:"environments,omitempty" json:"environments,omitempty"`
 	Capabilities []string `toml:"capabilities,omitempty" json:"capabilities,omitempty"`
 	Schemas      []string `toml:"schemas,omitempty" json:"schemas,omitempty"`
 	Tests        []string `toml:"tests,omitempty" json:"tests,omitempty"`
@@ -18,7 +19,7 @@ type ExportSet struct {
 func (e ExportSet) Sorted() ExportSet {
 	return ExportSet{
 		Modules: sortedCopy(e.Modules), Types: sortedCopy(e.Types), Enums: sortedCopy(e.Enums),
-		Variants: sortedCopy(e.Variants), Transforms: sortedCopy(e.Transforms), Policies: sortedCopy(e.Policies),
+		Variants: sortedCopy(e.Variants), Transforms: sortedCopy(e.Transforms), Policies: sortedCopy(e.Policies), Environments: sortedCopy(e.Environments),
 		Capabilities: sortedCopy(e.Capabilities), Schemas: sortedCopy(e.Schemas), Tests: sortedCopy(e.Tests),
 	}
 }
@@ -27,7 +28,7 @@ func (e ExportSet) Sorted() ExportSet {
 func (e ExportSet) Categories() map[string][]string {
 	return map[string][]string{
 		"module": e.Modules, "type": e.Types, "enum": e.Enums, "variant": e.Variants,
-		"transform": e.Transforms, "policy": e.Policies, "capability": e.Capabilities,
+		"transform": e.Transforms, "policy": e.Policies, "environment": e.Environments, "capability": e.Capabilities,
 		"schema": e.Schemas, "test": e.Tests,
 	}
 }

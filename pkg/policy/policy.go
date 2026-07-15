@@ -9,21 +9,35 @@ import (
 
 type RuleType string
 
+type FailureMode string
+
 const (
 	Require RuleType = "require"
 	Deny    RuleType = "deny"
 	Warn    RuleType = "warn"
+
+	FailureModeFail FailureMode = "Fail"
+	FailureModeWarn FailureMode = "Warn"
 )
 
+// Options controls which baked-in policies are evaluated for a build.
+// Include and Exclude contain policy names as they appear in Mosaic source.
+type Options struct {
+	FailureMode FailureMode
+	Include     []string
+	Exclude     []string
+}
+
 type Result struct {
-	Policy         string               `json:"policy"`
-	Rule           RuleType             `json:"rule"`
-	Severity       diagnostics.Severity `json:"severity"`
-	ResourceID     graph.ResourceID     `json:"resourceId"`
-	Message        string               `json:"message"`
-	PolicySource   diagnostics.Span     `json:"policySource"`
-	ResourceSource diagnostics.Span     `json:"resourceSource"`
-	Field          graph.FieldPath      `json:"field,omitempty"`
+	Policy           string               `json:"policy"`
+	Rule             RuleType             `json:"rule"`
+	Severity         diagnostics.Severity `json:"severity"`
+	ResourceID       graph.ResourceID     `json:"resourceId"`
+	Message          string               `json:"message"`
+	PolicySource     diagnostics.Span     `json:"policySource"`
+	ResourceSource   diagnostics.Span     `json:"resourceSource"`
+	Field            graph.FieldPath      `json:"field,omitempty"`
+	DowngradeAllowed bool                 `json:"downgradeAllowed,omitempty"`
 }
 type Report struct {
 	Results []Result `json:"results"`

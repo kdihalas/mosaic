@@ -106,4 +106,5 @@ module PlatformIntegrations(input : PlatformIntegrationsInput) {
     extension resource.externalSecret.spec.refreshInterval
     extension resource.rollout.spec.replicas
     extension resource.rollout.spec.strategy
+    extension resource.rollout.labels
 }

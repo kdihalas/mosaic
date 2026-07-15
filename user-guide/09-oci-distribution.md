@@ -40,6 +40,11 @@ The config records package identity, version, language version, manifest
 digest, and content digest. The layer is the deterministic `.mosaicpkg`
 archive.
 
+Library package layers contain only their selected package sources and normal
+metadata. Packages that export an environment are deployable packages; their
+layers additionally contain `mosaic.lock` and `vendor/mosaic/` so downstream
+artifact producers can build them offline without hidden registry access.
+
 ## Publish
 
 Publish using an exact reference:

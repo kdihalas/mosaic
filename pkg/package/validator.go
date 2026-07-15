@@ -210,6 +210,8 @@ func declarationName(node ast.Declaration) (string, string) {
 		return "transform", x.Name
 	case *ast.PolicyDeclaration:
 		return "policy", x.Name
+	case *ast.EnvironmentDeclaration:
+		return "environment", x.Name
 	case *ast.TestDeclaration:
 		return "test", x.Name
 	default:

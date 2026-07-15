@@ -50,6 +50,37 @@ func main() {
 
 Diagnostics are returned as `diagnostics.List`; libraries do not print or exit.
 
+## Run a locked, network-free deployment build
+
+Controllers and other artifact producers should use `pkg/build`. It detects or
+validates the input layout, verifies the lockfile and vendor tree, applies only
+variants baked into that source, runs policies, renders Kubernetes resources,
+and constructs a composable bundle.
+
+```go
+result, ds := build.Run(ctx, build.Input{
+    RootPath: "./catalog-platform",
+    InputKind: build.InputKindProject,
+    Environment: "prod",
+    Variants: []string{"production"},
+    Policy: policy.Options{
+        FailureMode: policy.FailureModeFail,
+    },
+    Offline: true,
+    Locked: true,
+})
+if ds.HasErrors() {
+    panic(ds)
+}
+
+manifests := result.Rendered.Files["kubernetes.yaml"]
+```
+
+`build.Run` rejects requests that are not explicitly offline and locked. It
+does not construct an OCI client or read process-global credentials. Package
+inputs must export the requested environment. Bundle inputs may select only
+variants embedded in the bundle's verified build recipe.
+
 ## Write a deterministic lockfile
 
 ```go
@@ -167,6 +198,7 @@ input := compiler.Input{
         },
     },
     Environment: "prod",
+    Variants: []string{"production"},
 }
 
 result, ds := compiler.New(compiler.NewOptions{}).CompileInput(ctx, input)

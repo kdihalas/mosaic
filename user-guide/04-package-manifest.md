@@ -38,6 +38,7 @@ enums = []
 variants = ["developmentDefaults", "productionDefaults"]
 transforms = []
 policies = ["requiredResources", "requiredOwnership"]
+environments = ["prod"]
 tests = []
 
 [dependencies]
@@ -107,6 +108,7 @@ Supported declaration categories are:
 - `variants`
 - `transforms`
 - `policies`
+- `environments`
 - `tests`
 
 `capabilities` and `schemas` are represented in the manifest model but
@@ -116,6 +118,10 @@ re-export tables are also not supported yet.
 Each exported name must exist in exactly the listed category. A name exported
 under multiple categories or a public API referencing private types fails
 validation.
+
+An exported environment makes a package independently deployable. Packages
+that export only modules, variants, or policies remain libraries and cannot be
+built as a deployment root.
 
 ## Dependency entries
 

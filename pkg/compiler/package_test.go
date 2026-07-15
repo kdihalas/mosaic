@@ -27,6 +27,7 @@ environment prod {
 		Files: []source.File{source.NewFile("src/package.mosaic", []byte(`
 module HttpService {
     workload "main" { name = input.name image = input.image replicas = 1 }
+    extension workload.main.replicas
 }
 variant productionDefaults { set catalog.workload.main.replicas = 3 }
 policy requiredResources { select Workload { deny replicas < 2 { message = "resources required" } } }

@@ -44,6 +44,41 @@ func TestVerifyRejectsTraversalAndSymlink(t *testing.T) {
 	}
 }
 
+func TestDeployablePackageIncludesLockedVendorTree(t *testing.T) {
+	root := t.TempDir()
+	writeFile := func(name, content string) {
+		t.Helper()
+		path := filepath.Join(root, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeFile("mosaic.package.toml", "name = \"acme/deployable\"\nversion = \"1.0.0\"\nlanguage_version = \"v1alpha1\"\nsources = [\"src/**/*.mosaic\"]\n[exports]\nenvironments = [\"prod\"]\n")
+	writeFile("src/deploy.mosaic", "environment prod { target kubernetes { namespace = \"default\" } }\n")
+	writeFile("mosaic.lock", "locked\n")
+	writeFile("vendor/mosaic/vendor.lock", "vendor locked\n")
+	writeFile("vendor/mosaic/packages/acme/dependency/1.0.0/mosaic.package.toml", "dependency\n")
+
+	artifact, ds := Pack(context.Background(), root, PackOptions{})
+	if ds.HasErrors() {
+		t.Fatal(ds)
+	}
+	want := map[string]bool{"mosaic.lock": false, "vendor/mosaic/vendor.lock": false, "vendor/mosaic/packages/acme/dependency/1.0.0/mosaic.package.toml": false}
+	for _, file := range artifact.Files {
+		if _, ok := want[file.Path]; ok {
+			want[file.Path] = true
+		}
+	}
+	for path, found := range want {
+		if !found {
+			t.Fatalf("archive missing %s", path)
+		}
+	}
+}
+
 func packageFixture(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()

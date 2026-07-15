@@ -35,6 +35,8 @@ module HttpService(input : HttpServiceInput) {
         workload = workload.main
         ports = [{ name = "http", port = 80, targetPort = 8080 }]
     }
+
+    extension workload.main.replicas
 }
 
 variant productionDefaults {

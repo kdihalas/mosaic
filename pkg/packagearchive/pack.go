@@ -135,7 +135,8 @@ func includePath(manifest mosaicpackage.Manifest, name string) bool {
 	}
 	base := filepath.Base(name)
 	conventional := strings.HasPrefix(base, "README") || strings.HasPrefix(base, "LICENSE") || strings.HasPrefix(name, "schemas/")
-	matched := conventional
+	deployableInput := len(manifest.Exports.Environments) > 0 && (name == "mosaic.lock" || strings.HasPrefix(name, "vendor/mosaic/"))
+	matched := conventional || deployableInput
 	for _, pattern := range manifest.Sources {
 		if ok, _ := doublestar.Match(pattern, name); ok {
 			matched = true
@@ -150,7 +151,7 @@ func includePath(manifest mosaicpackage.Manifest, name string) bool {
 			return false
 		}
 	}
-	return name != "mosaic.lock" && !strings.HasPrefix(name, "dist/") && !strings.HasPrefix(name, ".git/")
+	return !strings.HasPrefix(name, "dist/") && !strings.HasPrefix(name, ".git/")
 }
 
 func writeArchive(files []File) ([]byte, error) {

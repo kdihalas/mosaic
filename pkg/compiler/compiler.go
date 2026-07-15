@@ -31,6 +31,11 @@ import (
 type PhaseName string
 
 const (
+	Version         = "0.1.0-dev"
+	LanguageVersion = "v1alpha1"
+)
+
+const (
 	PhaseLex               PhaseName = "lex"
 	PhaseParse             PhaseName = "parse"
 	PhaseResolveNames      PhaseName = "resolve-names"
@@ -84,6 +89,10 @@ type Input struct {
 	RootProject *project.Project
 	Packages    []CompilationPackage
 	Environment string
+	// Variants are additional baked-in variants applied in declaration order
+	// after the variants selected by the environment.
+	Variants []string
+	Policy   policy.Options
 }
 type Metadata struct {
 	Project         string      `json:"project"`
@@ -103,6 +112,7 @@ type Result struct {
 	Instances    []module.Instance
 	Conflicts    []transform.Conflict
 	Snapshots    map[PhaseName]*graph.Graph
+	BuildInput   Input `json:"-"`
 }
 type Compiler struct{ limits Limits }
 
@@ -311,7 +321,7 @@ func (c *Compiler) CompileInput(ctx context.Context, input Input) (*Result, diag
 	}
 	g := graph.New()
 	prov := provenance.New()
-	r := &Result{Environment: input.Environment, Graph: g, Provenance: prov, Metadata: Metadata{Project: p.Name, CompilerVersion: "0.1.0", LanguageVersion: "v1alpha1", SourceDigest: sourceDigest(input), TargetOptions: value.Object(nil)}, ParsedFiles: pg.files, Analysis: pg.analysis, Snapshots: map[PhaseName]*graph.Graph{}}
+	r := &Result{Environment: input.Environment, Graph: g, Provenance: prov, Metadata: Metadata{Project: p.Name, CompilerVersion: Version, LanguageVersion: LanguageVersion, SourceDigest: sourceDigest(input), TargetOptions: value.Object(nil)}, ParsedFiles: pg.files, Analysis: pg.analysis, Snapshots: map[PhaseName]*graph.Graph{}, BuildInput: cloneInput(input)}
 	for _, s := range env.Body {
 		if b, ok := s.(*ast.BlockDeclaration); ok && b.Name == "target" {
 			if v, e := statementsObject(b.Body, semantic.Context{}); e == nil {
@@ -342,6 +352,18 @@ func (c *Compiler) CompileInput(ctx context.Context, input Input) (*Result, diag
 	writes := map[string][]transform.FieldWrite{}
 	applied := envApplies(env)
 	sort.Strings(applied)
+	seenVariants := make(map[string]bool, len(applied)+len(input.Variants))
+	for _, name := range applied {
+		seenVariants[name] = true
+	}
+	for _, name := range input.Variants {
+		if seenVariants[name] {
+			ds = append(ds, diag("SEM007", "duplicate selected variant or transform `"+name+"`", env.Span()))
+			continue
+		}
+		seenVariants[name] = true
+		applied = append(applied, name)
+	}
 	ops := 0
 	for _, name := range applied {
 		var body []ast.Statement
@@ -407,10 +429,36 @@ func (c *Compiler) CompileInput(ctx context.Context, input Input) (*Result, diag
 	if e := g.Validate(); e != nil {
 		ds = append(ds, diag("GRF001", e.Error(), env.Span()))
 	}
-	r.PolicyReport = c.policies(pg, env, g, prov, &ds)
+	r.PolicyReport = c.policies(pg, env, input.Policy, g, prov, &ds)
 	r.Snapshots[PhaseEvaluatePolicies] = g.Snapshot()
 	r.Graph = g.Snapshot()
 	return r, ds.Sorted()
+}
+
+func cloneInput(input Input) Input {
+	out := input
+	out.Variants = append([]string(nil), input.Variants...)
+	out.Policy.Include = append([]string(nil), input.Policy.Include...)
+	out.Policy.Exclude = append([]string(nil), input.Policy.Exclude...)
+	out.Packages = append([]CompilationPackage(nil), input.Packages...)
+	for i := range out.Packages {
+		out.Packages[i].Aliases = append([]string(nil), input.Packages[i].Aliases...)
+		out.Packages[i].Files = append([]source.File(nil), input.Packages[i].Files...)
+		for j := range out.Packages[i].Files {
+			out.Packages[i].Files[j].Content = append([]byte(nil), input.Packages[i].Files[j].Content...)
+		}
+		out.Packages[i].Dependencies = append([]PackageDependency(nil), input.Packages[i].Dependencies...)
+	}
+	if input.RootProject != nil {
+		root := *input.RootProject
+		root.Root = ""
+		root.Files = append([]source.File(nil), input.RootProject.Files...)
+		for i := range root.Files {
+			root.Files[i].Content = append([]byte(nil), input.RootProject.Files[i].Content...)
+		}
+		out.RootProject = &root
+	}
+	return out
 }
 func (c *Compiler) instantiate(g *graph.Graph, ps *provenance.Store, m *ast.ModuleDeclaration, a *ast.ModuleUseDeclaration, moduleID string) (module.Instance, error) {
 	inputs, err := statementsObject(a.Body, semantic.Context{})
@@ -438,6 +486,7 @@ func (c *Compiler) instantiate(g *graph.Graph, ps *provenance.Store, m *ast.Modu
 	if moduleID == "" {
 		moduleID = m.Name
 	}
+	extensions, protected := mutationPoints(m.Body)
 	inst := module.Instance{Module: moduleID, Alias: a.Alias}
 	for _, s := range m.Body {
 		rd, ok := s.(*ast.ResourceDeclaration)
@@ -455,7 +504,8 @@ func (c *Compiler) instantiate(g *graph.Graph, ps *provenance.Store, m *ast.Modu
 				name = x
 			}
 		}
-		r := graph.Resource{ID: id, Type: coreType(rd.Kind), Name: name, Fields: fields, Metadata: graph.Metadata{Module: moduleID, Source: rd.Span(), Exported: true}}
+		key := rd.Kind + "." + rd.Name
+		r := graph.Resource{ID: id, Type: coreType(rd.Kind), Name: name, Fields: fields, Metadata: graph.Metadata{Module: moduleID, Source: rd.Span(), Exported: true, Extensions: extensions[key], Protected: protected[key]}}
 		if v, ok := fields.Get("labels"); ok {
 			r.Labels = stringMap(v)
 		}
@@ -487,6 +537,35 @@ func (c *Compiler) instantiate(g *graph.Graph, ps *provenance.Store, m *ast.Modu
 		}
 	}
 	return inst, nil
+}
+
+func mutationPoints(statements []ast.Statement) (map[string][]graph.FieldPath, map[string][]graph.FieldPath) {
+	extensions := map[string][]graph.FieldPath{}
+	protected := map[string][]graph.FieldPath{}
+	for _, statement := range statements {
+		var targetExpression ast.Expression
+		var destination map[string][]graph.FieldPath
+		switch typed := statement.(type) {
+		case *ast.ExtensionStatement:
+			targetExpression, destination = typed.Target, extensions
+		case *ast.ProtectedStatement:
+			targetExpression, destination = typed.Target, protected
+		default:
+			continue
+		}
+		path, ok := semantic.Path(targetExpression)
+		if !ok || len(path) < 3 {
+			continue
+		}
+		key := path[0] + "." + path[1]
+		destination[key] = append(destination[key], graph.FieldPath(path[2:]))
+	}
+	for _, collection := range []map[string][]graph.FieldPath{extensions, protected} {
+		for key := range collection {
+			sort.Slice(collection[key], func(i, j int) bool { return collection[key][i].String() < collection[key][j].String() })
+		}
+	}
+	return extensions, protected
 }
 func inputSource(a *ast.ModuleUseDeclaration, name string) diagnostics.Span {
 	for _, s := range a.Body {
@@ -685,6 +764,9 @@ func (c *Compiler) applyStatement(g *graph.Graph, ps *provenance.Store, s ast.St
 			field = "ports"
 		}
 		path := graph.FieldPath{field}
+		if err := validateMutationPoint(g, id, path); err != nil {
+			return nil, err
+		}
 		cur, _ := g.ReadField(id, path)
 		list, _ := cur.ListValue()
 		list = append(list, body)
@@ -698,6 +780,11 @@ func (c *Compiler) applyStatement(g *graph.Graph, ps *provenance.Store, s ast.St
 	id, path, e := target(o.Target)
 	if e != nil {
 		return nil, e
+	}
+	if owner.Kind == "variant" || owner.Kind == "transform" {
+		if err := validateMutationPoint(g, id, path); err != nil {
+			return nil, err
+		}
 	}
 	prev, _ := g.ReadField(id, path)
 	var next value.Value
@@ -759,6 +846,40 @@ func (c *Compiler) applyStatement(g *graph.Graph, ps *provenance.Store, s ast.St
 		}
 	}
 	return []transform.FieldWrite{{ResourceID: id, Path: path, Operation: kind, Value: next, Owner: owner, Source: s.Span(), Explicit: explicit}}, nil
+}
+
+func validateMutationPoint(g *graph.Graph, id graph.ResourceID, path graph.FieldPath) error {
+	resource, ok := g.Get(id)
+	if !ok {
+		return fmt.Errorf("resource not found: %s", id)
+	}
+	for _, protected := range resource.Metadata.Protected {
+		if pathsOverlap(path, protected) {
+			return fmt.Errorf("protected field modification: %s.%s", id, path.String())
+		}
+	}
+	for _, extension := range resource.Metadata.Extensions {
+		if pathHasPrefix(path, extension) {
+			return nil
+		}
+	}
+	return fmt.Errorf("field is not an extension point: %s.%s", id, path.String())
+}
+
+func pathsOverlap(a, b graph.FieldPath) bool {
+	return pathHasPrefix(a, b) || pathHasPrefix(b, a)
+}
+
+func pathHasPrefix(path, prefix graph.FieldPath) bool {
+	if len(prefix) > len(path) {
+		return false
+	}
+	for i := range prefix {
+		if path[i] != prefix[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func (c *Compiler) resolveReferences(g *graph.Graph, ds *diagnostics.List) {
@@ -828,7 +949,7 @@ func conflict(ws []transform.FieldWrite) bool {
 	}
 	return false
 }
-func (c *Compiler) policies(pg *program, e *ast.EnvironmentDeclaration, g *graph.Graph, ps *provenance.Store, ds *diagnostics.List) policy.Report {
+func (c *Compiler) policies(pg *program, e *ast.EnvironmentDeclaration, options policy.Options, g *graph.Graph, ps *provenance.Store, ds *diagnostics.List) policy.Report {
 	selected := map[string]bool{}
 	for _, s := range e.Body {
 		if b, ok := s.(*ast.BlockDeclaration); ok && b.Name == "policies" {
@@ -844,6 +965,15 @@ func (c *Compiler) policies(pg *program, e *ast.EnvironmentDeclaration, g *graph
 			selected[n] = true
 		}
 	}
+	if len(options.Include) > 0 {
+		selected = make(map[string]bool, len(options.Include))
+		for _, name := range options.Include {
+			selected[name] = true
+		}
+	}
+	for _, name := range options.Exclude {
+		delete(selected, name)
+	}
 	var report policy.Report
 	count := 0
 	names := make([]string, 0, len(selected))
@@ -857,6 +987,7 @@ func (c *Compiler) policies(pg *program, e *ast.EnvironmentDeclaration, g *graph
 			*ds = append(*ds, diag("POL001", "unknown policy `"+n+"`", e.Span()))
 			continue
 		}
+		downgradeAllowed := policyDowngradeAllowed(pd)
 		for _, st := range pd.Body {
 			sel, ok := st.(*ast.SelectStatement)
 			if !ok {
@@ -918,8 +1049,10 @@ func (c *Compiler) policies(pg *program, e *ast.EnvironmentDeclaration, g *graph
 					sev := diagnostics.SeverityError
 					if rt == policy.Warn {
 						sev = diagnostics.SeverityWarning
+					} else if options.FailureMode == policy.FailureModeWarn && downgradeAllowed {
+						sev = diagnostics.SeverityWarning
 					}
-					report.Results = append(report.Results, policy.Result{Policy: n, Rule: rt, Severity: sev, ResourceID: r.ID, Message: msg, PolicySource: rule.Span(), ResourceSource: r.Metadata.Source})
+					report.Results = append(report.Results, policy.Result{Policy: n, Rule: rt, Severity: sev, ResourceID: r.ID, Message: msg, PolicySource: rule.Span(), ResourceSource: r.Metadata.Source, DowngradeAllowed: downgradeAllowed})
 					*ds = append(*ds, diagnostics.Diagnostic{Code: "POL002", Severity: sev, Message: msg, Span: rule.Span(), Related: []diagnostics.Related{{Message: string(r.ID), Span: r.Metadata.Source}}})
 					ps.Add(provenance.Event{ResourceID: r.ID, Action: provenance.PolicyValidated, Owner: provenance.Owner{Kind: "policy", Name: n}, Source: rule.Span()})
 				}
@@ -928,6 +1061,26 @@ func (c *Compiler) policies(pg *program, e *ast.EnvironmentDeclaration, g *graph
 	}
 	report.Sort()
 	return report
+}
+
+func policyDowngradeAllowed(pd *ast.PolicyDeclaration) bool {
+	for _, statement := range pd.Body {
+		assignment, ok := statement.(*ast.AssignmentStatement)
+		if !ok {
+			continue
+		}
+		path, ok := semantic.Path(assignment.Target)
+		if !ok || len(path) != 1 || path[0] != "downgradeAllowed" {
+			continue
+		}
+		v, err := semantic.Evaluate(assignment.Value, semantic.Context{})
+		if err != nil {
+			return false
+		}
+		allowed, _ := v.BoolValue()
+		return allowed
+	}
+	return false
 }
 func coreTypeName(s string) graph.TypeName {
 	if strings.HasPrefix(s, "core.") {
@@ -957,5 +1110,18 @@ func sourceDigest(input Input) string {
 		h.Write(size[:])
 		h.Write(f.Content)
 	}
+	writeStrings := func(values []string) {
+		binary.BigEndian.PutUint64(size[:], uint64(len(values)))
+		h.Write(size[:])
+		for _, item := range values {
+			binary.BigEndian.PutUint64(size[:], uint64(len(item)))
+			h.Write(size[:])
+			h.Write([]byte(item))
+		}
+	}
+	writeStrings(input.Variants)
+	writeStrings(input.Policy.Include)
+	writeStrings(input.Policy.Exclude)
+	writeStrings([]string{string(input.Policy.FailureMode)})
 	return "sha256:" + hex.EncodeToString(h.Sum(nil))
 }
