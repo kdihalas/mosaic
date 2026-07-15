@@ -1,0 +1,16 @@
+name = "acme/http-service"
+version = "1.0.0"
+description = "Reusable HTTP service module"
+language_version = "v1alpha1"
+license = "Apache-2.0"
+sources = ["src/**/*.mosaic", "tests/**/*.mosaic"]
+exclude = ["dist/**", ".git/**"]
+
+[exports]
+modules = ["HttpService"]
+types = ["HttpServiceInput", "ResourceProfile"]
+variants = ["productionDefaults"]
+policies = ["requiredResources"]
+
+[dependencies]
+observability = { path = "../observability" }

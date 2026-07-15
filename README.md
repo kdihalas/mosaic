@@ -5,6 +5,12 @@ modules, explicit environment variants, policies, references, and provenance
 into backend-neutral graphs and validated Kubernetes bundles. It is a compiler
 and library toolkit—not a controller, deployer, reconciler, or cluster client.
 
+Reusable declarative packages can be consumed from local paths or OCI
+registries. Exact versions and SHA-256 digests live in `mosaic.lock`; restored
+packages can be cached or vendored for offline builds. See
+[Packages](docs/packages.md), [Dependencies](docs/dependencies.md), and the
+[comprehensive user guide](user-guide/README.md).
+
 ## Install and quick start
 
 ```sh
@@ -26,8 +32,7 @@ Secrets Operator `ExternalSecret`, and Argo Rollouts `Rollout` resources. The
 example includes typed inputs, variants, policies, tests, and deterministic
 dev/prod bundles.
 
-Commands are `init`, `fmt`, `parse`, `validate`, `build`, `inspect`, `explain`,
-`diff`, `test`, `version`, and the developer-oriented `lex`. See
+Commands also include the `package`, `deps`, and `cache` command groups. See
 [docs/cli.md](docs/cli.md).
 
 Coding agents that generate Mosaic configuration should follow

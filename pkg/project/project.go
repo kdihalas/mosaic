@@ -3,6 +3,9 @@ package project
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,16 +14,20 @@ import (
 
 	"github.com/bmatcuk/doublestar/v4"
 	"github.com/kdihalas/mosaic/pkg/diagnostics"
+	mosaicpackage "github.com/kdihalas/mosaic/pkg/package"
 	"github.com/kdihalas/mosaic/pkg/syntax/source"
 	"github.com/pelletier/go-toml/v2"
 )
 
 type Config struct {
-	Name            string   `toml:"name"`
-	LanguageVersion string   `toml:"language_version"`
-	Sources         []string `toml:"sources"`
-	Exclude         []string `toml:"exclude"`
-	DefaultOutput   string   `toml:"default_output"`
+	Name                           string                              `toml:"name" json:"name"`
+	LanguageVersion                string                              `toml:"language_version" json:"languageVersion"`
+	Sources                        []string                            `toml:"sources" json:"sources"`
+	Exclude                        []string                            `toml:"exclude" json:"exclude"`
+	DefaultOutput                  string                              `toml:"default_output" json:"defaultOutput"`
+	AllowExternalLocalDependencies bool                                `toml:"allow_external_local_dependencies,omitempty" json:"allowExternalLocalDependencies,omitempty"`
+	Dependencies                   map[string]mosaicpackage.Dependency `toml:"dependencies,omitempty" json:"dependencies,omitempty"`
+	Replace                        map[string]mosaicpackage.Dependency `toml:"replace,omitempty" json:"replace,omitempty"`
 }
 type Project struct {
 	Root   string
@@ -29,6 +36,57 @@ type Project struct {
 	Config Config
 }
 type LoadOptions struct{ ConfigFile string }
+
+// LoadManifest reads only mosaic.toml and applies project defaults.
+func LoadManifest(root string, opt LoadOptions) (Config, string, diagnostics.List) {
+	abs, err := filepath.Abs(root)
+	if err != nil {
+		return Config{}, "", one("PRJ001", err.Error(), root)
+	}
+	cfg := Config{LanguageVersion: "v1alpha1", DefaultOutput: "dist"}
+	cfgName := opt.ConfigFile
+	if cfgName == "" {
+		cfgName = "mosaic.toml"
+	}
+	cfgPath := cfgName
+	if !filepath.IsAbs(cfgPath) {
+		cfgPath = filepath.Join(abs, cfgPath)
+	}
+	data, err := os.ReadFile(cfgPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return cfg, cfgPath, nil
+		}
+		return Config{}, cfgPath, one("PRJ001", err.Error(), cfgName)
+	}
+	if err := toml.Unmarshal(data, &cfg); err != nil {
+		return Config{}, cfgPath, one("PRJ002", err.Error(), cfgName)
+	}
+	return cfg, cfgPath, nil
+}
+
+// DependencyDigest binds dependency-affecting project configuration.
+func DependencyDigest(cfg Config) string {
+	model := struct {
+		Name            string                              `json:"name"`
+		LanguageVersion string                              `json:"languageVersion"`
+		AllowExternal   bool                                `json:"allowExternal"`
+		Dependencies    map[string]mosaicpackage.Dependency `json:"dependencies"`
+		Replace         map[string]mosaicpackage.Dependency `json:"replace"`
+	}{cfg.Name, cfg.LanguageVersion, cfg.AllowExternalLocalDependencies, cfg.Dependencies, cfg.Replace}
+	b, _ := json.Marshal(model)
+	sum := sha256.Sum256(b)
+	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
+// MarshalConfig serializes project configuration deterministically.
+func MarshalConfig(cfg Config) ([]byte, error) {
+	b, err := toml.Marshal(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return b, nil
+}
 
 func New(root, name string, files []source.File) *Project {
 	cp := append([]source.File(nil), files...)
@@ -46,23 +104,13 @@ func Load(ctx context.Context, root string, opt LoadOptions) (*Project, diagnost
 	}
 	cfg := Config{LanguageVersion: "v1alpha1", DefaultOutput: "dist"}
 	name := filepath.Base(abs)
-	cfgName := opt.ConfigFile
-	if cfgName == "" {
-		cfgName = "mosaic.toml"
-	}
-	cfgPath := cfgName
-	if !filepath.IsAbs(cfgPath) {
-		cfgPath = filepath.Join(abs, cfgPath)
-	}
-	if data, e := os.ReadFile(cfgPath); e == nil {
-		if e = toml.Unmarshal(data, &cfg); e != nil {
-			return nil, one("PRJ002", e.Error(), cfgName)
-		}
+	if loaded, _, d := LoadManifest(abs, opt); d.HasErrors() {
+		return nil, d
+	} else {
+		cfg = loaded
 		if cfg.Name != "" {
 			name = cfg.Name
 		}
-	} else if !os.IsNotExist(e) {
-		return nil, one("PRJ001", e.Error(), cfgName)
 	}
 	var names []string
 	err = filepath.WalkDir(abs, func(path string, d os.DirEntry, e error) error {

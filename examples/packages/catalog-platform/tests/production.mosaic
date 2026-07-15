@@ -1,0 +1,4 @@
+test productionUsesPackageDefaults {
+    build prod
+    assert catalog.workload.main.replicas == 3
+}

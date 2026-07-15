@@ -37,10 +37,11 @@ type streams struct {
 	out, err io.Writer
 }
 type config struct {
-	project, format         string
-	noColor, verbose, quiet bool
-	max                     int
-	s                       streams
+	project, format, cacheDir string
+	plainHTTP                 bool
+	noColor, verbose, quiet   bool
+	max                       int
+	s                         streams
 }
 type exitError struct {
 	code int
@@ -82,7 +83,9 @@ func (c *config) root() *cobra.Command {
 	f.IntVar(&c.max, "max-diagnostics", 100, "maximum diagnostics")
 	f.BoolVar(&c.verbose, "verbose", false, "verbose output")
 	f.BoolVar(&c.quiet, "quiet", false, "suppress summaries")
-	r.AddCommand(c.initCmd(), c.fmtCmd(), c.parseCmd(), c.validateCmd(), c.buildCmd(), c.inspectCmd(), c.explainCmd(), c.diffCmd(), c.testCmd(), c.versionCmd(), c.lexCmd())
+	f.StringVar(&c.cacheDir, "cache-dir", "", "package cache directory")
+	f.BoolVar(&c.plainHTTP, "plain-http", false, "allow plaintext HTTP for OCI registries")
+	r.AddCommand(c.initCmd(), c.fmtCmd(), c.parseCmd(), c.validateCmd(), c.buildCmd(), c.inspectCmd(), c.explainCmd(), c.diffCmd(), c.testCmd(), c.versionCmd(), c.lexCmd(), c.packageCmd(), c.depsCmd(), c.cacheCmd())
 	return r
 }
 func (c *config) load(ctx context.Context) (*project.Project, error) {
@@ -94,11 +97,14 @@ func (c *config) load(ctx context.Context) (*project.Project, error) {
 	return p, nil
 }
 func (c *config) compile(ctx context.Context, env string) (*compiler.Result, error) {
-	p, e := c.load(ctx)
+	return c.compileWithDependencies(ctx, env, dependencyRunOptions{locked: true})
+}
+func (c *config) compileWithDependencies(ctx context.Context, env string, options dependencyRunOptions) (*compiler.Result, error) {
+	p, packages, e := c.loadCompilation(ctx, options)
 	if e != nil {
 		return nil, e
 	}
-	r, ds := compiler.New(compiler.NewOptions{}).Compile(ctx, p, compiler.Options{Environment: env, MaxDiagnostics: c.max})
+	r, ds := compiler.New(compiler.NewOptions{}).CompileInput(ctx, compiler.Input{RootProject: p, Packages: packages, Environment: env})
 	if len(ds) > 0 {
 		c.printDiagnostics(ds)
 	}
@@ -117,6 +123,15 @@ func (c *config) printDiagnostics(ds diagnostics.List) {
 		writef(c.s.err, "%s[%s]: %s\n", d.Severity, d.Code, d.Message)
 		if d.Span.SourceName != "" {
 			writef(c.s.err, "  %s:%d:%d\n", d.Span.SourceName, d.Span.Start.Line, d.Span.Start.Column)
+		}
+		for _, note := range d.Notes {
+			writef(c.s.err, "  %s\n", note)
+		}
+		for _, related := range d.Related {
+			writef(c.s.err, "  %s: %s:%d:%d\n", related.Message, related.Span.SourceName, related.Span.Start.Line, related.Span.Start.Column)
+		}
+		if d.Suggestion != "" {
+			writef(c.s.err, "  suggestion: %s\n", d.Suggestion)
 		}
 	}
 }
@@ -269,14 +284,18 @@ func (c *config) parseCmd() *cobra.Command {
 	return x
 }
 func (c *config) validateCmd() *cobra.Command {
-	return &cobra.Command{Use: "validate [environment]", Short: "Validate a project or environment without rendering", Args: cobra.MaximumNArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
-		p, e := c.load(cmd.Context())
+	var locked, offline, vendorMode, updateLock, noReplacements bool
+	x := &cobra.Command{Use: "validate [environment]", Short: "Validate a project or environment without rendering", Args: cobra.MaximumNArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+		p, packages, e := c.loadCompilation(cmd.Context(), dependencyRunOptions{locked: locked, offline: offline, vendor: vendorMode, updateLock: updateLock})
 		if e != nil {
 			return e
 		}
+		if noReplacements && len(p.Config.Replace) > 0 {
+			return exitError{1, errors.New("project replacements are not permitted")}
+		}
 		co := compiler.New(compiler.NewOptions{})
 		if len(args) == 0 {
-			a, ds := co.Analyze(cmd.Context(), p)
+			a, ds := co.AnalyzeInput(cmd.Context(), compiler.Input{RootProject: p, Packages: packages})
 			if len(ds) > 0 {
 				c.printDiagnostics(ds)
 			}
@@ -288,7 +307,7 @@ func (c *config) validateCmd() *cobra.Command {
 			}
 			return nil
 		}
-		r, ds := co.Compile(cmd.Context(), p, compiler.Options{Environment: args[0]})
+		r, ds := co.CompileInput(cmd.Context(), compiler.Input{RootProject: p, Packages: packages, Environment: args[0]})
 		if len(ds) > 0 {
 			c.printDiagnostics(ds)
 		}
@@ -300,12 +319,18 @@ func (c *config) validateCmd() *cobra.Command {
 		}
 		return nil
 	}}
+	x.Flags().BoolVar(&locked, "locked", false, "do not modify mosaic.lock")
+	x.Flags().BoolVar(&offline, "offline", false, "use local sources and verified cache only")
+	x.Flags().BoolVar(&vendorMode, "vendor", false, "use vendor/mosaic only")
+	x.Flags().BoolVar(&updateLock, "update-lock", false, "resolve and update mosaic.lock")
+	x.Flags().BoolVar(&noReplacements, "no-replacements", false, "reject project replacements")
+	return x
 }
 func (c *config) buildCmd() *cobra.Command {
 	var output string
-	var clean bool
+	var clean, locked, offline, vendorMode, updateLock bool
 	x := &cobra.Command{Use: "build <environment>", Short: "Compile an environment into a deterministic bundle", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
-		r, e := c.compile(cmd.Context(), args[0])
+		r, e := c.compileWithDependencies(cmd.Context(), args[0], dependencyRunOptions{locked: locked, offline: offline, vendor: vendorMode, updateLock: updateLock})
 		if e != nil {
 			return e
 		}
@@ -342,6 +367,10 @@ func (c *config) buildCmd() *cobra.Command {
 	}}
 	x.Flags().StringVar(&output, "output", "", "output path")
 	x.Flags().BoolVar(&clean, "clean", false, "replace existing output")
+	x.Flags().BoolVar(&locked, "locked", false, "do not modify mosaic.lock")
+	x.Flags().BoolVar(&offline, "offline", false, "use local sources and verified cache only")
+	x.Flags().BoolVar(&vendorMode, "vendor", false, "use vendor/mosaic only")
+	x.Flags().BoolVar(&updateLock, "update-lock", false, "resolve and update mosaic.lock")
 	return x
 }
 func (c *config) inspectCmd() *cobra.Command {
@@ -434,12 +463,13 @@ func (c *config) diffCmd() *cobra.Command {
 	return x
 }
 func (c *config) testCmd() *cobra.Command {
-	return &cobra.Command{Use: "test [paths...]", Short: "Run Mosaic configuration tests", Args: cobra.ArbitraryArgs, RunE: func(cmd *cobra.Command, args []string) error {
-		p, e := c.load(cmd.Context())
+	var locked, offline, vendorMode, updateLock bool
+	x := &cobra.Command{Use: "test [paths...]", Short: "Run Mosaic configuration tests", Args: cobra.ArbitraryArgs, RunE: func(cmd *cobra.Command, args []string) error {
+		p, packages, e := c.loadCompilation(cmd.Context(), dependencyRunOptions{locked: locked, offline: offline, vendor: vendorMode, updateLock: updateLock})
 		if e != nil {
 			return e
 		}
-		r, ds := mtesting.Run(cmd.Context(), p, compiler.New(compiler.NewOptions{}))
+		r, ds := mtesting.RunInput(cmd.Context(), compiler.Input{RootProject: p, Packages: packages}, compiler.New(compiler.NewOptions{}))
 		if ds.HasErrors() {
 			c.printDiagnostics(ds)
 			return exitError{1, errors.New("test analysis failed")}
@@ -468,6 +498,11 @@ func (c *config) testCmd() *cobra.Command {
 		}
 		return nil
 	}}
+	x.Flags().BoolVar(&locked, "locked", false, "do not modify mosaic.lock")
+	x.Flags().BoolVar(&offline, "offline", false, "use local sources and verified cache only")
+	x.Flags().BoolVar(&vendorMode, "vendor", false, "use vendor/mosaic only")
+	x.Flags().BoolVar(&updateLock, "update-lock", false, "resolve and update mosaic.lock")
+	return x
 }
 func (c *config) versionCmd() *cobra.Command {
 	return &cobra.Command{Use: "version", Short: "Print compiler, language, and bundle versions", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {

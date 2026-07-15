@@ -1,0 +1,13 @@
+use http.HttpService as catalog {
+    name = "catalog-api"
+    image = "ghcr.io/acme/catalog-api:1.4.0"
+    owner = "catalog-team"
+    resources {
+        replicas = 1
+        memory = "256Mi"
+    }
+    metrics {
+        enabled = true
+        path = "/metrics"
+    }
+}

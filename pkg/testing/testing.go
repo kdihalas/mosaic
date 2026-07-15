@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/kdihalas/mosaic/pkg/compiler"
 	"github.com/kdihalas/mosaic/pkg/diagnostics"
@@ -27,12 +28,22 @@ type Report struct {
 }
 
 func Run(ctx context.Context, p *project.Project, c *compiler.Compiler) (Report, diagnostics.List) {
-	a, ds := c.Analyze(ctx, p)
+	return RunInput(ctx, compiler.Input{RootProject: p}, c)
+}
+
+// RunInput executes tests with explicit restored compilation packages.
+func RunInput(ctx context.Context, input compiler.Input, c *compiler.Compiler) (Report, diagnostics.List) {
+	a, ds := c.AnalyzeInput(ctx, input)
 	if ds.HasErrors() {
 		return Report{}, ds
 	}
 	var tests []*ast.TestDeclaration
 	for _, f := range a.Files {
+		// Dependency package tests are validated by their owning package and do
+		// not become root project tests merely because package sources are loaded.
+		if strings.HasPrefix(f.Name, "package/") {
+			continue
+		}
 		for _, d := range f.Declarations {
 			if t, ok := d.(*ast.TestDeclaration); ok {
 				tests = append(tests, t)
@@ -55,7 +66,9 @@ func Run(ctx context.Context, p *project.Project, c *compiler.Compiler) (Report,
 			report.Cases = append(report.Cases, cr)
 			continue
 		}
-		r, cd := c.Compile(ctx, p, compiler.Options{Environment: env})
+		compileInput := input
+		compileInput.Environment = env
+		r, cd := c.CompileInput(ctx, compileInput)
 		if cd.HasErrors() {
 			cr.Message = cd[0].Message
 			report.Failed++

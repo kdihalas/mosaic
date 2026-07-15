@@ -13,3 +13,9 @@ resources. Renderers consume a graph without mutating it.
 There is intentionally no Kubernetes client, controller loop, CRD, admission
 webhook, release store, or reconciliation behavior. Another product may import
 the graph and bundle packages to implement those concerns.
+
+Package resolution precedes compilation. The manifest and lockfile select
+exact content, restoration verifies it, and callers supply explicit compilation
+packages. The compiler has no registry, credential, cache, or network
+dependency. Each package owns a symbol table; only exports are visible through
+direct dependency aliases.

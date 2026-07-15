@@ -215,6 +215,15 @@ func (p *parser) typeExpression() ast.Expression {
 	}
 	p.advance()
 	var out ast.Expression = &ast.IdentifierExpression{Base: ast.Base{SourceSpan: start.Span}, Name: start.Text}
+	for p.match(token.Dot) {
+		member := p.cur()
+		if member.Kind != token.Identifier && !member.Kind.IsKeyword() {
+			p.report("PAR002", "expected qualified type name", member.Span)
+			break
+		}
+		p.advance()
+		out = &ast.MemberExpression{Base: base(out.Span(), member.Span), Object: out, Member: member.Text}
+	}
 	if p.match(token.Less) {
 		var args []ast.Expression
 		for !p.at(token.Greater) && !p.at(token.EOF) {
@@ -234,11 +243,25 @@ func (p *parser) typeExpression() ast.Expression {
 }
 func (p *parser) useDecl() ast.Declaration {
 	start := p.advance()
-	mod := p.ident()
+	mod, modEnd := p.qualifiedName()
 	p.expect(token.KeywordAs, "`as`")
 	alias := p.ident()
 	body, end := p.body()
+	_ = modEnd
 	return &ast.ModuleUseDeclaration{Base: base(start.Span, end), Module: mod, Alias: alias, Body: body}
+}
+
+func (p *parser) qualifiedName() (string, diagnostics.Span) {
+	first := p.cur()
+	name := p.ident()
+	end := first.Span
+	for p.match(token.Dot) {
+		member := p.cur()
+		part := p.ident()
+		name += "." + part
+		end = member.Span
+	}
+	return name, end
 }
 func (p *parser) body() ([]ast.Statement, diagnostics.Span) {
 	open := p.expect(token.LeftBrace, "`{`")
@@ -274,12 +297,12 @@ func (p *parser) statement() ast.Statement {
 	switch t.Kind {
 	case token.KeywordUse:
 		p.advance()
-		n := p.ident()
-		return &ast.UseStatement{Base: base(t.Span, p.tokens[p.pos-1].Span), Name: n}
+		n, end := p.qualifiedName()
+		return &ast.UseStatement{Base: base(t.Span, end), Name: n}
 	case token.KeywordApply:
 		p.advance()
-		n := p.ident()
-		return &ast.ApplyStatement{Base: base(t.Span, p.tokens[p.pos-1].Span), Name: n}
+		n, end := p.qualifiedName()
+		return &ast.ApplyStatement{Base: base(t.Span, end), Name: n}
 	case token.KeywordExport:
 		p.advance()
 		e := p.expression(0)

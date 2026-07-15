@@ -1,4 +1,4 @@
-.PHONY: build test test-race vet lint fmt example golden
+.PHONY: build test test-race vet lint fmt example golden package-test package-example package-pack package-registry-test dependency-test
 build:
 	go build ./cmd/mosaic
 test:
@@ -23,3 +23,19 @@ example:
 	go run ./cmd/mosaic --project ./examples/operator-integrations test
 golden:
 	UPDATE_GOLDEN=1 go test ./...
+package-test:
+	go test ./pkg/package ./pkg/packagearchive ./pkg/packagecache ./pkg/vendor ./pkg/compiler
+dependency-test:
+	go test ./pkg/dependency ./pkg/lockfile ./pkg/packagefs
+package-example:
+	go run ./cmd/mosaic package validate ./examples/packages/observability
+	go run ./cmd/mosaic package validate ./examples/packages/http-service
+	go run ./cmd/mosaic --project ./examples/packages/catalog-platform --cache-dir /tmp/mosaic-package-cache deps resolve
+	go run ./cmd/mosaic --project ./examples/packages/catalog-platform --cache-dir /tmp/mosaic-package-cache build prod --locked --output /tmp/mosaic-package-build
+	go run ./cmd/mosaic --project ./examples/packages/catalog-platform --cache-dir /tmp/mosaic-package-cache deps vendor --offline --output /tmp/mosaic-package-vendor
+package-pack:
+	go run ./cmd/mosaic package pack ./examples/packages/http-service --output /tmp/http-a.mosaicpkg
+	go run ./cmd/mosaic package pack ./examples/packages/http-service --output /tmp/http-b.mosaicpkg
+	cmp /tmp/http-a.mosaicpkg /tmp/http-b.mosaicpkg
+package-registry-test:
+	go test ./pkg/registry/...

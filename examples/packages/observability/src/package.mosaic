@@ -1,0 +1,23 @@
+type MetricsConfig {
+    enabled : bool = true
+    path : string = "/metrics"
+}
+
+module ServiceMonitorModule {
+    config "metrics" {
+        name = input.name
+        data = { path = input.path }
+        labels {
+            "app.kubernetes.io/name" = input.name
+            "something.com/owner" = input.owner
+        }
+    }
+}
+
+policy requiredMetricsLabels {
+    select Config {
+        require labels != null {
+            message = "Metrics configuration requires labels."
+        }
+    }
+}

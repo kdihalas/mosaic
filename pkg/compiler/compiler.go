@@ -14,6 +14,7 @@ import (
 	"github.com/kdihalas/mosaic/pkg/diagnostics"
 	"github.com/kdihalas/mosaic/pkg/graph"
 	"github.com/kdihalas/mosaic/pkg/module"
+	mosaicpackage "github.com/kdihalas/mosaic/pkg/package"
 	"github.com/kdihalas/mosaic/pkg/policy"
 	"github.com/kdihalas/mosaic/pkg/project"
 	"github.com/kdihalas/mosaic/pkg/provenance"
@@ -22,6 +23,7 @@ import (
 	"github.com/kdihalas/mosaic/pkg/syntax/ast"
 	"github.com/kdihalas/mosaic/pkg/syntax/lexer"
 	"github.com/kdihalas/mosaic/pkg/syntax/parser"
+	"github.com/kdihalas/mosaic/pkg/syntax/source"
 	"github.com/kdihalas/mosaic/pkg/transform"
 	"github.com/kdihalas/mosaic/pkg/value"
 )
@@ -57,6 +59,31 @@ type NewOptions struct{ Limits Limits }
 type Options struct {
 	Environment    string
 	MaxDiagnostics int
+}
+
+// CompilationPackage is a verified package source unit supplied to the compiler.
+type CompilationPackage struct {
+	Identity     mosaicpackage.Identity
+	Version      mosaicpackage.Version
+	Aliases      []string
+	Root         string
+	Files        []source.File
+	Manifest     mosaicpackage.Manifest
+	Exports      mosaicpackage.ExportSet
+	Dependencies []PackageDependency
+}
+
+type PackageDependency struct {
+	Alias    string
+	Identity mosaicpackage.Identity
+	Version  mosaicpackage.Version
+}
+
+// Input makes source ownership and dependency namespaces explicit.
+type Input struct {
+	RootProject *project.Project
+	Packages    []CompilationPackage
+	Environment string
 }
 type Metadata struct {
 	Project         string      `json:"project"`
@@ -115,88 +142,176 @@ type program struct {
 	policies   map[string]*ast.PolicyDeclaration
 	tests      map[string]*ast.TestDeclaration
 	analysis   *semantic.Analysis
+	moduleIDs  map[*ast.ModuleDeclaration]string
+	aliases    map[string]mosaicpackage.ExportSet
 }
 
 func (c *Compiler) Analyze(ctx context.Context, p *project.Project) (*semantic.Analysis, diagnostics.List) {
-	pg, d := c.load(ctx, p)
+	return c.AnalyzeInput(ctx, Input{RootProject: p})
+}
+
+func (c *Compiler) AnalyzeInput(ctx context.Context, input Input) (*semantic.Analysis, diagnostics.List) {
+	pg, d := c.load(ctx, input)
 	if pg == nil {
 		return nil, d
 	}
 	return pg.analysis, d
 }
-func (c *Compiler) load(ctx context.Context, p *project.Project) (*program, diagnostics.List) {
-	pg := &program{modules: map[string]*ast.ModuleDeclaration{}, apps: map[string]*ast.ModuleUseDeclaration{}, variants: map[string]*ast.VariantDeclaration{}, transforms: map[string]*ast.TransformDeclaration{}, envs: map[string]*ast.EnvironmentDeclaration{}, policies: map[string]*ast.PolicyDeclaration{}, tests: map[string]*ast.TestDeclaration{}}
+func (c *Compiler) load(ctx context.Context, input Input) (*program, diagnostics.List) {
+	if input.RootProject == nil {
+		return nil, diagnostics.List{diag("CMP001", "root project is nil", diagnostics.Span{})}
+	}
+	p := input.RootProject
+	pg := &program{modules: map[string]*ast.ModuleDeclaration{}, apps: map[string]*ast.ModuleUseDeclaration{}, variants: map[string]*ast.VariantDeclaration{}, transforms: map[string]*ast.TransformDeclaration{}, envs: map[string]*ast.EnvironmentDeclaration{}, policies: map[string]*ast.PolicyDeclaration{}, tests: map[string]*ast.TestDeclaration{}, moduleIDs: map[*ast.ModuleDeclaration]string{}, aliases: map[string]mosaicpackage.ExportSet{}}
 	table := symbols.New()
 	var ds diagnostics.List
-	for _, f := range p.Files {
-		select {
-		case <-ctx.Done():
-			return nil, append(ds, diag("CMP001", ctx.Err().Error(), diagnostics.Span{}))
-		default:
+	type unit struct {
+		files []source.File
+		pkg   *CompilationPackage
+	}
+	units := []unit{{files: p.Files}}
+	packages := append([]CompilationPackage(nil), input.Packages...)
+	sort.Slice(packages, func(i, j int) bool {
+		if packages[i].Identity != packages[j].Identity {
+			return packages[i].Identity < packages[j].Identity
 		}
-		lr := lexer.Lex(f, lexer.Options{MaxDiagnostics: c.limits.MaxDiagnostics})
-		ds = append(ds, lr.Diagnostics...)
-		pr := parser.Parse(f, lr.Tokens, parser.Options{MaxDiagnostics: c.limits.MaxDiagnostics, MaxParseDepth: c.limits.MaxParseDepth, MaxExpressionDepth: c.limits.MaxExpressionDepth})
-		ds = append(ds, pr.Diagnostics...)
-		pg.files = append(pg.files, pr.File)
-		for _, d := range pr.File.Declarations {
-			var k symbols.Kind
-			var n string
-			switch x := d.(type) {
-			case *ast.ModuleDeclaration:
-				k, n = symbols.Module, x.Name
-				pg.modules[n] = x
-			case *ast.ModuleUseDeclaration:
-				k, n = symbols.Application, x.Alias
-				pg.apps[n] = x
-			case *ast.VariantDeclaration:
-				k, n = symbols.Variant, x.Name
-				pg.variants[n] = x
-			case *ast.TransformDeclaration:
-				k, n = symbols.Transform, x.Name
-				pg.transforms[n] = x
-			case *ast.EnvironmentDeclaration:
-				k, n = symbols.Environment, x.Name
-				pg.envs[n] = x
-			case *ast.PolicyDeclaration:
-				k, n = symbols.Policy, x.Name
-				pg.policies[n] = x
-			case *ast.TestDeclaration:
-				k, n = symbols.Test, x.Name
-				pg.tests[n] = x
-			case *ast.TypeDeclaration:
-				k, n = symbols.Type, x.Name
-			case *ast.EnumDeclaration:
-				k, n = symbols.Enum, x.Name
+		return packages[i].Version < packages[j].Version
+	})
+	for i := range packages {
+		for _, alias := range packages[i].Aliases {
+			pg.aliases[alias] = packages[i].Exports
+		}
+	}
+	for i := range packages {
+		cp := packages[i]
+		units = append(units, unit{files: cp.Files, pkg: &cp})
+	}
+	for _, u := range units {
+		for _, original := range u.files {
+			f := original
+			if u.pkg != nil {
+				f.Name = "package/" + u.pkg.Identity.String() + "@" + u.pkg.Version.String() + "/" + original.Name
 			}
-			if n != "" {
-				s := symbols.Symbol{ID: string(k) + "." + n, Name: n, Kind: k, Source: d.Span()}
-				if !table.Add(s) {
-					ds = append(ds, diag("SEM001", "duplicate declaration `"+n+"`", d.Span()))
+			select {
+			case <-ctx.Done():
+				return nil, append(ds, diag("CMP001", ctx.Err().Error(), diagnostics.Span{}))
+			default:
+			}
+			lr := lexer.Lex(f, lexer.Options{MaxDiagnostics: c.limits.MaxDiagnostics})
+			ds = append(ds, lr.Diagnostics...)
+			pr := parser.Parse(f, lr.Tokens, parser.Options{MaxDiagnostics: c.limits.MaxDiagnostics, MaxParseDepth: c.limits.MaxParseDepth, MaxExpressionDepth: c.limits.MaxExpressionDepth})
+			ds = append(ds, pr.Diagnostics...)
+			pg.files = append(pg.files, pr.File)
+			for _, d := range pr.File.Declarations {
+				var k symbols.Kind
+				var n string
+				switch x := d.(type) {
+				case *ast.ModuleDeclaration:
+					k, n = symbols.Module, x.Name
+					if u.pkg == nil {
+						pg.modules[n] = x
+						pg.moduleIDs[x] = n
+					}
+				case *ast.ModuleUseDeclaration:
+					k, n = symbols.Application, x.Alias
+					if u.pkg == nil {
+						pg.apps[n] = x
+					}
+				case *ast.VariantDeclaration:
+					k, n = symbols.Variant, x.Name
+					if u.pkg == nil {
+						pg.variants[n] = x
+					}
+				case *ast.TransformDeclaration:
+					k, n = symbols.Transform, x.Name
+					if u.pkg == nil {
+						pg.transforms[n] = x
+					}
+				case *ast.EnvironmentDeclaration:
+					k, n = symbols.Environment, x.Name
+					if u.pkg == nil {
+						pg.envs[n] = x
+					}
+				case *ast.PolicyDeclaration:
+					k, n = symbols.Policy, x.Name
+					if u.pkg == nil {
+						pg.policies[n] = x
+					}
+				case *ast.TestDeclaration:
+					k, n = symbols.Test, x.Name
+					if u.pkg == nil {
+						pg.tests[n] = x
+					}
+				case *ast.TypeDeclaration:
+					k, n = symbols.Type, x.Name
+				case *ast.EnumDeclaration:
+					k, n = symbols.Enum, x.Name
+				}
+				if n != "" {
+					id := string(k) + "." + n
+					if u.pkg != nil {
+						id = mosaicpackage.SymbolID(u.pkg.Identity, u.pkg.Version, string(k), n)
+					}
+					s := symbols.Symbol{ID: id, Name: n, Kind: k, Source: d.Span()}
+					if !table.Add(s) {
+						ds = append(ds, diag("SEM001", "duplicate declaration `"+n+"`", d.Span()))
+					}
+					if u.pkg != nil && u.pkg.Exports.Contains(string(k), n) {
+						for _, alias := range u.pkg.Aliases {
+							qualified := alias + "." + n
+							pg.aliases[alias] = u.pkg.Exports
+							switch x := d.(type) {
+							case *ast.ModuleDeclaration:
+								pg.modules[qualified] = x
+								pg.moduleIDs[x] = id
+							case *ast.VariantDeclaration:
+								pg.variants[qualified] = x
+							case *ast.TransformDeclaration:
+								pg.transforms[qualified] = x
+							case *ast.PolicyDeclaration:
+								pg.policies[qualified] = x
+							case *ast.TestDeclaration:
+								pg.tests[qualified] = x
+							}
+						}
+					}
 				}
 			}
 		}
 	}
 	for _, a := range pg.apps {
 		if _, ok := pg.modules[a.Module]; !ok {
-			ds = append(ds, diag("SEM003", "unknown module `"+a.Module+"`", a.Span()))
+			code := "SEM003"
+			message := "unknown module `" + a.Module + "`"
+			if parts := strings.SplitN(a.Module, ".", 2); len(parts) == 2 {
+				if _, known := pg.aliases[parts[0]]; known {
+					code = "PKG031"
+					message = "symbol `" + parts[1] + "` is private to package alias `" + parts[0] + "`"
+				}
+			}
+			ds = append(ds, diag(code, message, a.Span()))
 		}
 	}
 	pg.analysis = &semantic.Analysis{Files: pg.files, Symbols: table.List()}
 	return pg, ds.Sorted()
 }
 func (c *Compiler) Compile(ctx context.Context, p *project.Project, o Options) (*Result, diagnostics.List) {
-	pg, ds := c.load(ctx, p)
+	return c.CompileInput(ctx, Input{RootProject: p, Environment: o.Environment})
+}
+
+func (c *Compiler) CompileInput(ctx context.Context, input Input) (*Result, diagnostics.List) {
+	p := input.RootProject
+	pg, ds := c.load(ctx, input)
 	if pg == nil || ds.HasErrors() {
 		return nil, ds
 	}
-	env, ok := pg.envs[o.Environment]
+	env, ok := pg.envs[input.Environment]
 	if !ok {
-		return nil, append(ds, diag("SEM004", "unknown environment `"+o.Environment+"`", diagnostics.Span{SourceName: o.Environment}))
+		return nil, append(ds, diag("SEM004", "unknown environment `"+input.Environment+"`", diagnostics.Span{SourceName: input.Environment}))
 	}
 	g := graph.New()
 	prov := provenance.New()
-	r := &Result{Environment: o.Environment, Graph: g, Provenance: prov, Metadata: Metadata{Project: p.Name, CompilerVersion: "0.1.0", LanguageVersion: "v1alpha1", SourceDigest: sourceDigest(p), TargetOptions: value.Object(nil)}, ParsedFiles: pg.files, Analysis: pg.analysis, Snapshots: map[PhaseName]*graph.Graph{}}
+	r := &Result{Environment: input.Environment, Graph: g, Provenance: prov, Metadata: Metadata{Project: p.Name, CompilerVersion: "0.1.0", LanguageVersion: "v1alpha1", SourceDigest: sourceDigest(input), TargetOptions: value.Object(nil)}, ParsedFiles: pg.files, Analysis: pg.analysis, Snapshots: map[PhaseName]*graph.Graph{}}
 	for _, s := range env.Body {
 		if b, ok := s.(*ast.BlockDeclaration); ok && b.Name == "target" {
 			if v, e := statementsObject(b.Body, semantic.Context{}); e == nil {
@@ -213,7 +328,7 @@ func (c *Compiler) Compile(ctx context.Context, p *project.Project, o Options) (
 			continue
 		}
 		m := pg.modules[app.Module]
-		inst, e := c.instantiate(g, prov, m, app)
+		inst, e := c.instantiate(g, prov, m, app, pg.moduleIDs[m])
 		if e != nil {
 			ds = append(ds, diag("CMP010", e.Error(), app.Span()))
 		} else {
@@ -297,7 +412,7 @@ func (c *Compiler) Compile(ctx context.Context, p *project.Project, o Options) (
 	r.Graph = g.Snapshot()
 	return r, ds.Sorted()
 }
-func (c *Compiler) instantiate(g *graph.Graph, ps *provenance.Store, m *ast.ModuleDeclaration, a *ast.ModuleUseDeclaration) (module.Instance, error) {
+func (c *Compiler) instantiate(g *graph.Graph, ps *provenance.Store, m *ast.ModuleDeclaration, a *ast.ModuleUseDeclaration, moduleID string) (module.Instance, error) {
 	inputs, err := statementsObject(a.Body, semantic.Context{})
 	if err != nil {
 		return module.Instance{}, err
@@ -320,7 +435,10 @@ func (c *Compiler) instantiate(g *graph.Graph, ps *provenance.Store, m *ast.Modu
 		}
 		return value.Value{}, false
 	}
-	inst := module.Instance{Module: m.Name, Alias: a.Alias}
+	if moduleID == "" {
+		moduleID = m.Name
+	}
+	inst := module.Instance{Module: moduleID, Alias: a.Alias}
 	for _, s := range m.Body {
 		rd, ok := s.(*ast.ResourceDeclaration)
 		if !ok {
@@ -337,7 +455,7 @@ func (c *Compiler) instantiate(g *graph.Graph, ps *provenance.Store, m *ast.Modu
 				name = x
 			}
 		}
-		r := graph.Resource{ID: id, Type: coreType(rd.Kind), Name: name, Fields: fields, Metadata: graph.Metadata{Module: m.Name, Source: rd.Span(), Exported: true}}
+		r := graph.Resource{ID: id, Type: coreType(rd.Kind), Name: name, Fields: fields, Metadata: graph.Metadata{Module: moduleID, Source: rd.Span(), Exported: true}}
 		if v, ok := fields.Get("labels"); ok {
 			r.Labels = stringMap(v)
 		}
@@ -348,7 +466,7 @@ func (c *Compiler) instantiate(g *graph.Graph, ps *provenance.Store, m *ast.Modu
 			return inst, e
 		}
 		inst.Resources = append(inst.Resources, id)
-		ps.Add(provenance.Event{ResourceID: id, Action: provenance.ResourceCreated, Current: fields, Owner: provenance.Owner{Kind: "module", Name: m.Name}, Source: rd.Span()})
+		ps.Add(provenance.Event{ResourceID: id, Action: provenance.ResourceCreated, Current: fields, Owner: provenance.Owner{Kind: "module", Name: moduleID}, Source: rd.Span()})
 		for _, st := range rd.Body {
 			as, ok := st.(*ast.AssignmentStatement)
 			if !ok {
@@ -820,10 +938,18 @@ func coreTypeName(s string) graph.TypeName {
 func diag(code, msg string, s diagnostics.Span) diagnostics.Diagnostic {
 	return diagnostics.Diagnostic{Code: code, Severity: diagnostics.SeverityError, Message: msg, Span: s}
 }
-func sourceDigest(p *project.Project) string {
+func sourceDigest(input Input) string {
 	h := sha256.New()
 	var size [8]byte
-	for _, f := range p.Files {
+	files := append([]source.File(nil), input.RootProject.Files...)
+	for _, pkg := range input.Packages {
+		for _, f := range pkg.Files {
+			f.Name = "package/" + pkg.Identity.String() + "@" + pkg.Version.String() + "/" + f.Name
+			files = append(files, f)
+		}
+	}
+	sort.Slice(files, func(i, j int) bool { return files[i].Name < files[j].Name })
+	for _, f := range files {
 		binary.BigEndian.PutUint64(size[:], uint64(len(f.Name)))
 		h.Write(size[:])
 		h.Write([]byte(f.Name))

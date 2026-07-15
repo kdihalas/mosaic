@@ -1,0 +1,50 @@
+type ResourceProfile {
+    replicas : int = 1
+    memory : MemoryQuantity = "256Mi"
+}
+
+type HttpServiceInput {
+    name : ResourceName
+    image : ImageReference
+    owner : string
+    resources : ResourceProfile
+    metrics : observability.MetricsConfig
+}
+
+module HttpService(input : HttpServiceInput) {
+    serviceAccount "main" {
+        name = input.name
+        labels {
+            "something.com/owner" = input.owner
+        }
+    }
+
+    workload "main" {
+        name = input.name
+        image = input.image
+        replicas = input.resources.replicas
+        serviceAccount = serviceAccount.main
+        labels {
+            "app.kubernetes.io/name" = input.name
+            "something.com/owner" = input.owner
+        }
+    }
+
+    expose "http" {
+        name = input.name
+        workload = workload.main
+        ports = [{ name = "http", port = 80, targetPort = 8080 }]
+    }
+}
+
+variant productionDefaults {
+    set catalog.workload.main.replicas = 3
+}
+
+policy requiredResources {
+    select Workload {
+        require replicas > 0 {
+            message = "HTTP workloads require a positive replica count."
+        }
+    }
+}

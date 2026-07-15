@@ -1,7 +1,13 @@
 # CLI
 
-Global flags are `--project`, `--format`, `--no-color`, `--max-diagnostics`,
-`--verbose`, and `--quiet`. Run `mosaic help <command>` for command flags.
+Global flags include `--project`, `--format`, `--cache-dir`, and the explicit
+OCI test option `--plain-http`. Run `mosaic help <command>` for command flags.
+
+Package commands are `package init|validate|pack|publish|pull|inspect|verify`.
+Dependency commands are `deps add|remove|resolve|restore|update|list|graph|vendor`.
+Cache commands are `cache list|verify|prune`. Dependency-aware build,
+validation, and test commands accept `--locked`, `--offline`, `--vendor`, and
+`--update-lock`.
 
 `build` defaults to `dist/<environment>`; YAML/JSON formats can stream one
 artifact. `diff --fail-on-change` provides CI gating. `fmt --check` never edits.

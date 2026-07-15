@@ -1,0 +1,18 @@
+use ServiceMonitorModule as monitor {
+    name = "example-monitor"
+    path = "/metrics"
+    owner = "platform-team"
+}
+
+environment packageTest {
+    use monitor
+
+    target kubernetes {
+        namespace = "package-test"
+    }
+}
+
+test monitorBuilds {
+    build packageTest
+    assert monitor.config.metrics.data.path == "/metrics"
+}

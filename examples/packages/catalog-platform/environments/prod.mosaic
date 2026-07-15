@@ -1,0 +1,12 @@
+environment prod {
+    use catalog
+    apply http.productionDefaults
+
+    policies {
+        use http.requiredResources
+    }
+
+    target kubernetes {
+        namespace = "catalog-prod"
+    }
+}

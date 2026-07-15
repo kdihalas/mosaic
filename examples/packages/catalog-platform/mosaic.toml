@@ -1,0 +1,9 @@
+name = "package-catalog-platform"
+language_version = "v1alpha1"
+sources = ["**/*.mosaic"]
+exclude = ["dist/**"]
+default_output = "dist"
+allow_external_local_dependencies = true
+
+[dependencies]
+http = { path = "../http-service" }

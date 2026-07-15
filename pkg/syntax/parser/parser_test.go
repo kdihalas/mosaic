@@ -1,11 +1,14 @@
 package parser_test
 
 import (
+	"strings"
+	"testing"
+
+	"github.com/kdihalas/mosaic/pkg/semantic"
 	"github.com/kdihalas/mosaic/pkg/syntax/ast"
 	"github.com/kdihalas/mosaic/pkg/syntax/lexer"
 	"github.com/kdihalas/mosaic/pkg/syntax/parser"
 	"github.com/kdihalas/mosaic/pkg/syntax/source"
-	"testing"
 )
 
 func parse(t *testing.T, s string) *ast.File {
@@ -58,6 +61,22 @@ func TestQuotedObjectKeysAndRecovery(t *testing.T) {
 	r := parser.Parse(f, l.Tokens, parser.Options{})
 	if !r.Diagnostics.HasErrors() || len(r.File.Declarations) < 1 {
 		t.Fatal("expected recovery")
+	}
+}
+
+func TestQualifiedPackageNames(t *testing.T) {
+	f := parse(t, `use http.HttpService as catalog {}
+type Settings { profile: http.ResourceProfile }
+environment prod { use catalog apply http.productionDefaults policies { use http.requiredResources } }
+`)
+	use := f.Declarations[0].(*ast.ModuleUseDeclaration)
+	if use.Module != "http.HttpService" {
+		t.Fatalf("module = %q", use.Module)
+	}
+	typ := f.Declarations[1].(*ast.TypeDeclaration)
+	path, ok := semantic.Path(typ.Fields[0].Type)
+	if !ok || strings.Join(path, ".") != "http.ResourceProfile" {
+		t.Fatalf("type path = %v", path)
 	}
 }
 func FuzzParserNeverPanics(f *testing.F) {

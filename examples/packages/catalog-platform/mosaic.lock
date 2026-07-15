@@ -1,0 +1,21 @@
+format_version = 'v1alpha1'
+project = 'package-catalog-platform'
+dependency_digest = 'sha256:46090d256e3b3cbfdef78657acc4ac78ef09752d710d73e897e4622295e1fe85'
+
+[[package]]
+identity = 'acme/http-service'
+version = '1.0.0'
+source = 'path:../http-service'
+aliases = ['http']
+manifest_digest = 'sha256:b399e82e8d48d63d9944f02bbf81943f77a59921043623432bf1321be2afc50b'
+content_digest = 'sha256:5683917bb5cf0225514b7ce210415c081f0a85e0b1ac04cab3b97d560a613ead'
+archive_digest = 'sha256:86748f0076f0b89b6f318def9dcd5b8a0f2a861a85a4c16d31854c03d81aa1b0'
+dependencies = ['acme/observability@1.0.0']
+
+[[package]]
+identity = 'acme/observability'
+version = '1.0.0'
+source = 'path:../observability'
+manifest_digest = 'sha256:3e4449064c0e1a9bb5d21bdbdc271f0e9870f5885f9dfb00fb2c8eedd1e1f2a0'
+content_digest = 'sha256:bd8abbb0847d020654a5973764cbdf541c961277e4e98f04c8af863dcde410ac'
+archive_digest = 'sha256:e5cf2ee2d75738782c6cca879781a7d1719def172887a4cd844829bc0cda0adb'

@@ -20,6 +20,8 @@ jobs:
       - if: runner.os == 'Linux'
         run: make example
       - if: runner.os == 'Linux'
+        run: make package-test dependency-test package-pack package-example package-registry-test
+      - if: runner.os == 'Linux'
         run: make lint
       - if: runner.os == 'Linux'
         shell: bash
