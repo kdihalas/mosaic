@@ -24,6 +24,10 @@ Commands are `init`, `fmt`, `parse`, `validate`, `build`, `inspect`, `explain`,
 `diff`, `test`, `version`, and the developer-oriented `lex`. See
 [docs/cli.md](docs/cli.md).
 
+Coding agents that generate Mosaic configuration should follow
+[AGENTS.md](AGENTS.md), which includes project discovery, authoring patterns,
+type-preservation rules, and the required verification workflow.
+
 ## Library use
 
 ```go
