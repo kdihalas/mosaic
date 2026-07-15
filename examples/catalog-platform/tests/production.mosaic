@@ -1,0 +1,14 @@
+test productionUsesStableImage {
+    build prod
+    assert catalog.workload.main.image == "ghcr.io/acme/catalog-api:1.4.0"
+}
+
+test productionHasAutoscaling {
+    build prod
+    assert catalog.capability.autoscaling != null
+}
+
+test devHasNoDisruptionBudget {
+    build dev
+    assert catalog.capability.disruptionProtection == null
+}

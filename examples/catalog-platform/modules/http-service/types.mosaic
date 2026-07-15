@@ -1,0 +1,6 @@
+type HttpServiceInput {
+    name : string
+    image : ImageReference
+    owner : string
+    replicas : int = 1
+}

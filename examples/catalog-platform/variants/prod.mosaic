@@ -1,0 +1,18 @@
+variant production {
+    set catalog.workload.main.replicas = 3
+    merge catalog.workload.main.labels {
+        "something.com/deployment-tier" = "production"
+    }
+    enable autoscaling {
+        target = catalog.workload.main
+        minimumReplicas = 3
+        maximumReplicas = 12
+        cpu {
+            averageUtilisation = 65
+        }
+    }
+    enable disruptionProtection {
+        target = catalog.workload.main
+        minimumAvailable = 2
+    }
+}

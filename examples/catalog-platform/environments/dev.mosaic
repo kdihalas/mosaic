@@ -1,0 +1,11 @@
+environment dev {
+    use catalog
+    apply development
+    policies {
+        use validContainerImages
+        use requiredOwnership
+    }
+    target kubernetes {
+        namespace = "catalog-dev"
+    }
+}

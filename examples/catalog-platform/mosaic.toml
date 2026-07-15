@@ -1,0 +1,5 @@
+name = "catalog-platform"
+language_version = "v1alpha1"
+sources = ["**/*.mosaic"]
+exclude = ["dist/**"]
+default_output = "dist"

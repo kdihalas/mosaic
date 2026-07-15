@@ -1,0 +1,11 @@
+environment stage {
+    use catalog
+    apply staging
+    policies {
+        use validContainerImages
+        use requiredOwnership
+    }
+    target kubernetes {
+        namespace = "catalog-stage"
+    }
+}

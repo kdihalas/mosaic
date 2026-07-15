@@ -1,0 +1,5 @@
+module WebApplication(input: WebApplicationInput) {
+    workload "api" {
+        replicas = 3
+    }
+}

@@ -1,0 +1,18 @@
+policy validContainerImages {
+    select Workload {
+        deny image.endsWith(":latest") {
+            message = "Workloads must not use the latest image tag."
+        }
+        require image.contains(":") {
+            message = "Workload images must use an explicit tag."
+        }
+    }
+}
+
+policy requiredOwnership {
+    select Workload {
+        require labels ["something.com/owner"] != null {
+            message = "Every resource must have an owner label."
+        }
+    }
+}

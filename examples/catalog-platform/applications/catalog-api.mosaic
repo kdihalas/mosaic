@@ -1,0 +1,13 @@
+use HttpService as catalog {
+    name = "catalog-api"
+    image = "ghcr.io/acme/catalog-api:1.4.0"
+    owner = "catalog-team"
+    replicas = 1
+    config = {
+        APP_ENV = "base"
+        LOG_LEVEL = "info"
+    }
+    environment = {
+        APP_ENV = "base"
+    }
+}

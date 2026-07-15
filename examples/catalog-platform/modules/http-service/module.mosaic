@@ -1,0 +1,49 @@
+module HttpService(input : HttpServiceInput) {
+    config "runtime" {
+        name = input.name
+        data = input.config
+        labels {
+            "something.com/owner" = input.owner
+        }
+    }
+
+    serviceAccount "main" {
+        name = input.name
+        labels {
+            "something.com/owner" = input.owner
+        }
+    }
+
+    workload "main" {
+        name = input.name
+        image = input.image
+        replicas = input.replicas
+        serviceAccount = serviceAccount.main
+        environment = input.environment
+        labels {
+            "app.kubernetes.io/name" = input.name
+            "app.kubernetes.io/component" = "api"
+            "app.kubernetes.io/managed-by" = "mosaic"
+            "something.com/owner" = input.owner
+        }
+        ports = [{ name = "http", containerPort = 8080 }]
+    }
+
+    expose "http" {
+        name = input.name
+        workload = workload.main
+        ports = [{ name = "http", port = 80, targetPort = 8080 }]
+        labels {
+            "app.kubernetes.io/name" = input.name
+            "something.com/owner" = input.owner
+        }
+    }
+
+    export config.runtime
+    export serviceAccount.main
+    export workload.main
+    export expose.http
+    extension workload.main.image
+    extension workload.main.replicas
+    extension workload.main.labels
+}

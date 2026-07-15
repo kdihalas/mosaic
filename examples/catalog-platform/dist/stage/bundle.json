@@ -1,0 +1,35 @@
+{
+  "formatVersion": "v1alpha1",
+  "environment": "stage",
+  "compilerVersion": "0.1.0",
+  "sourceDigest": "sha256:45d01eee4c6563522811fc01bd7302e8c3c819b5b5fcfb47c0047e4e452a5b64",
+  "graphDigest": "sha256:ee2b1513e4bd0f87e6203684ce60672a6c6b9b5bc698f8a9262c061b52e080d5",
+  "bundleDigest": "sha256:3c86e4e2bd5e4ab1c24f084a3391272c85ee41b552a7c47924686b3a4f98a927",
+  "artifacts": [
+    {
+      "name": "graph.json",
+      "mediaType": "application/json",
+      "digest": "sha256:24b21892bf8563e03856f03ce110f47391c9673aabb69a4e9e8bfbec779bd58d"
+    },
+    {
+      "name": "kubernetes.json",
+      "mediaType": "application/json",
+      "digest": "sha256:29ca874e354e87d8b539c38f168b774d728f7d7e5beb10cbad48254297f0dd57"
+    },
+    {
+      "name": "kubernetes.yaml",
+      "mediaType": "application/yaml",
+      "digest": "sha256:50b89a49b17e8b144af54f2eba5083bb3611bcf704ac769d7d98c67d8caf1ad8"
+    },
+    {
+      "name": "policy-report.json",
+      "mediaType": "application/json",
+      "digest": "sha256:bbbc2c417a435dca4e9a22d1a3ac14db5d5c24af9036dd31f8997440bfb8781d"
+    },
+    {
+      "name": "provenance.json",
+      "mediaType": "application/json",
+      "digest": "sha256:849679149c168eda56d3f587b19fc3eda310adc25f0d4117fe634e387631d68d"
+    }
+  ]
+}

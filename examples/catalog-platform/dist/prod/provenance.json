@@ -1,0 +1,936 @@
+[
+  {
+    "sequence": 1,
+    "resourceId": "application.catalog.config.runtime",
+    "action": "resource-created",
+    "previous": null,
+    "current": {
+      "data": {
+        "APP_ENV": "base",
+        "LOG_LEVEL": "info"
+      },
+      "labels": {
+        "something.com/owner": "catalog-team"
+      },
+      "name": "catalog-api"
+    },
+    "owner": {
+      "kind": "module",
+      "name": "HttpService"
+    },
+    "source": {
+      "sourceName": "modules/http-service/module.mosaic",
+      "start": {
+        "offset": 51,
+        "line": 2,
+        "column": 5
+      },
+      "end": {
+        "offset": 204,
+        "line": 8,
+        "column": 6
+      }
+    }
+  },
+  {
+    "sequence": 2,
+    "resourceId": "application.catalog.config.runtime",
+    "fieldPath": [
+      "name"
+    ],
+    "action": "input-supplied",
+    "previous": null,
+    "current": "catalog-api",
+    "owner": {
+      "kind": "application",
+      "name": "catalog"
+    },
+    "source": {
+      "sourceName": "applications/catalog-api.mosaic",
+      "start": {
+        "offset": 33,
+        "line": 2,
+        "column": 5
+      },
+      "end": {
+        "offset": 53,
+        "line": 2,
+        "column": 25
+      }
+    }
+  },
+  {
+    "sequence": 3,
+    "resourceId": "application.catalog.config.runtime",
+    "fieldPath": [
+      "name"
+    ],
+    "action": "module-assigned",
+    "previous": null,
+    "current": "catalog-api",
+    "owner": {
+      "kind": "module",
+      "name": "HttpService"
+    },
+    "source": {
+      "sourceName": "modules/http-service/module.mosaic",
+      "start": {
+        "offset": 78,
+        "line": 3,
+        "column": 9
+      },
+      "end": {
+        "offset": 95,
+        "line": 3,
+        "column": 26
+      }
+    }
+  },
+  {
+    "sequence": 4,
+    "resourceId": "application.catalog.config.runtime",
+    "fieldPath": [
+      "data"
+    ],
+    "action": "input-supplied",
+    "previous": null,
+    "current": {
+      "APP_ENV": "base",
+      "LOG_LEVEL": "info"
+    },
+    "owner": {
+      "kind": "application",
+      "name": "catalog"
+    },
+    "source": {
+      "sourceName": "applications/catalog-api.mosaic",
+      "start": {
+        "offset": 147,
+        "line": 6,
+        "column": 5
+      },
+      "end": {
+        "offset": 215,
+        "line": 9,
+        "column": 6
+      }
+    }
+  },
+  {
+    "sequence": 5,
+    "resourceId": "application.catalog.config.runtime",
+    "fieldPath": [
+      "data"
+    ],
+    "action": "module-assigned",
+    "previous": null,
+    "current": {
+      "APP_ENV": "base",
+      "LOG_LEVEL": "info"
+    },
+    "owner": {
+      "kind": "module",
+      "name": "HttpService"
+    },
+    "source": {
+      "sourceName": "modules/http-service/module.mosaic",
+      "start": {
+        "offset": 104,
+        "line": 4,
+        "column": 9
+      },
+      "end": {
+        "offset": 123,
+        "line": 4,
+        "column": 28
+      }
+    }
+  },
+  {
+    "sequence": 6,
+    "resourceId": "application.catalog.serviceAccount.main",
+    "action": "resource-created",
+    "previous": null,
+    "current": {
+      "labels": {
+        "something.com/owner": "catalog-team"
+      },
+      "name": "catalog-api"
+    },
+    "owner": {
+      "kind": "module",
+      "name": "HttpService"
+    },
+    "source": {
+      "sourceName": "modules/http-service/module.mosaic",
+      "start": {
+        "offset": 210,
+        "line": 10,
+        "column": 5
+      },
+      "end": {
+        "offset": 340,
+        "line": 15,
+        "column": 6
+      }
+    }
+  },
+  {
+    "sequence": 7,
+    "resourceId": "application.catalog.serviceAccount.main",
+    "fieldPath": [
+      "name"
+    ],
+    "action": "input-supplied",
+    "previous": null,
+    "current": "catalog-api",
+    "owner": {
+      "kind": "application",
+      "name": "catalog"
+    },
+    "source": {
+      "sourceName": "applications/catalog-api.mosaic",
+      "start": {
+        "offset": 33,
+        "line": 2,
+        "column": 5
+      },
+      "end": {
+        "offset": 53,
+        "line": 2,
+        "column": 25
+      }
+    }
+  },
+  {
+    "sequence": 8,
+    "resourceId": "application.catalog.serviceAccount.main",
+    "fieldPath": [
+      "name"
+    ],
+    "action": "module-assigned",
+    "previous": null,
+    "current": "catalog-api",
+    "owner": {
+      "kind": "module",
+      "name": "HttpService"
+    },
+    "source": {
+      "sourceName": "modules/http-service/module.mosaic",
+      "start": {
+        "offset": 242,
+        "line": 11,
+        "column": 9
+      },
+      "end": {
+        "offset": 259,
+        "line": 11,
+        "column": 26
+      }
+    }
+  },
+  {
+    "sequence": 9,
+    "resourceId": "application.catalog.workload.main",
+    "action": "resource-created",
+    "previous": null,
+    "current": {
+      "environment": {
+        "APP_ENV": "base"
+      },
+      "image": "ghcr.io/acme/catalog-api:1.4.0",
+      "labels": {
+        "app.kubernetes.io/component": "api",
+        "app.kubernetes.io/managed-by": "mosaic",
+        "app.kubernetes.io/name": "catalog-api",
+        "something.com/owner": "catalog-team"
+      },
+      "name": "catalog-api",
+      "ports": [
+        {
+          "containerPort": 8080,
+          "name": "http"
+        }
+      ],
+      "replicas": 1,
+      "serviceAccount": {
+        "$reference": {
+          "target": "application.catalog.serviceAccount.main",
+          "type": "serviceAccount",
+          "source": {
+            "sourceName": "",
+            "start": {
+              "offset": 0,
+              "line": 0,
+              "column": 0
+            },
+            "end": {
+              "offset": 0,
+              "line": 0,
+              "column": 0
+            }
+          }
+        }
+      }
+    },
+    "owner": {
+      "kind": "module",
+      "name": "HttpService"
+    },
+    "source": {
+      "sourceName": "modules/http-service/module.mosaic",
+      "start": {
+        "offset": 346,
+        "line": 17,
+        "column": 5
+      },
+      "end": {
+        "offset": 829,
+        "line": 30,
+        "column": 6
+      }
+    }
+  },
+  {
+    "sequence": 10,
+    "resourceId": "application.catalog.workload.main",
+    "fieldPath": [
+      "name"
+    ],
+    "action": "input-supplied",
+    "previous": null,
+    "current": "catalog-api",
+    "owner": {
+      "kind": "application",
+      "name": "catalog"
+    },
+    "source": {
+      "sourceName": "applications/catalog-api.mosaic",
+      "start": {
+        "offset": 33,
+        "line": 2,
+        "column": 5
+      },
+      "end": {
+        "offset": 53,
+        "line": 2,
+        "column": 25
+      }
+    }
+  },
+  {
+    "sequence": 11,
+    "resourceId": "application.catalog.workload.main",
+    "fieldPath": [
+      "name"
+    ],
+    "action": "module-assigned",
+    "previous": null,
+    "current": "catalog-api",
+    "owner": {
+      "kind": "module",
+      "name": "HttpService"
+    },
+    "source": {
+      "sourceName": "modules/http-service/module.mosaic",
+      "start": {
+        "offset": 372,
+        "line": 18,
+        "column": 9
+      },
+      "end": {
+        "offset": 389,
+        "line": 18,
+        "column": 26
+      }
+    }
+  },
+  {
+    "sequence": 12,
+    "resourceId": "application.catalog.workload.main",
+    "fieldPath": [
+      "image"
+    ],
+    "action": "input-supplied",
+    "previous": null,
+    "current": "ghcr.io/acme/catalog-api:1.4.0",
+    "owner": {
+      "kind": "application",
+      "name": "catalog"
+    },
+    "source": {
+      "sourceName": "applications/catalog-api.mosaic",
+      "start": {
+        "offset": 58,
+        "line": 3,
+        "column": 5
+      },
+      "end": {
+        "offset": 98,
+        "line": 3,
+        "column": 45
+      }
+    }
+  },
+  {
+    "sequence": 13,
+    "resourceId": "application.catalog.workload.main",
+    "fieldPath": [
+      "image"
+    ],
+    "action": "module-assigned",
+    "previous": null,
+    "current": "ghcr.io/acme/catalog-api:1.4.0",
+    "owner": {
+      "kind": "module",
+      "name": "HttpService"
+    },
+    "source": {
+      "sourceName": "modules/http-service/module.mosaic",
+      "start": {
+        "offset": 398,
+        "line": 19,
+        "column": 9
+      },
+      "end": {
+        "offset": 417,
+        "line": 19,
+        "column": 28
+      }
+    }
+  },
+  {
+    "sequence": 14,
+    "resourceId": "application.catalog.workload.main",
+    "fieldPath": [
+      "replicas"
+    ],
+    "action": "input-supplied",
+    "previous": null,
+    "current": 1,
+    "owner": {
+      "kind": "application",
+      "name": "catalog"
+    },
+    "source": {
+      "sourceName": "applications/catalog-api.mosaic",
+      "start": {
+        "offset": 130,
+        "line": 5,
+        "column": 5
+      },
+      "end": {
+        "offset": 142,
+        "line": 5,
+        "column": 17
+      }
+    }
+  },
+  {
+    "sequence": 15,
+    "resourceId": "application.catalog.workload.main",
+    "fieldPath": [
+      "replicas"
+    ],
+    "action": "module-assigned",
+    "previous": null,
+    "current": 1,
+    "owner": {
+      "kind": "module",
+      "name": "HttpService"
+    },
+    "source": {
+      "sourceName": "modules/http-service/module.mosaic",
+      "start": {
+        "offset": 426,
+        "line": 20,
+        "column": 9
+      },
+      "end": {
+        "offset": 451,
+        "line": 20,
+        "column": 34
+      }
+    }
+  },
+  {
+    "sequence": 16,
+    "resourceId": "application.catalog.workload.main",
+    "fieldPath": [
+      "serviceAccount"
+    ],
+    "action": "module-assigned",
+    "previous": null,
+    "current": {
+      "$reference": {
+        "target": "application.catalog.serviceAccount.main",
+        "type": "serviceAccount",
+        "source": {
+          "sourceName": "",
+          "start": {
+            "offset": 0,
+            "line": 0,
+            "column": 0
+          },
+          "end": {
+            "offset": 0,
+            "line": 0,
+            "column": 0
+          }
+        }
+      }
+    },
+    "owner": {
+      "kind": "module",
+      "name": "HttpService"
+    },
+    "source": {
+      "sourceName": "modules/http-service/module.mosaic",
+      "start": {
+        "offset": 460,
+        "line": 21,
+        "column": 9
+      },
+      "end": {
+        "offset": 496,
+        "line": 21,
+        "column": 45
+      }
+    }
+  },
+  {
+    "sequence": 17,
+    "resourceId": "application.catalog.workload.main",
+    "fieldPath": [
+      "environment"
+    ],
+    "action": "input-supplied",
+    "previous": null,
+    "current": {
+      "APP_ENV": "base"
+    },
+    "owner": {
+      "kind": "application",
+      "name": "catalog"
+    },
+    "source": {
+      "sourceName": "applications/catalog-api.mosaic",
+      "start": {
+        "offset": 220,
+        "line": 10,
+        "column": 5
+      },
+      "end": {
+        "offset": 266,
+        "line": 12,
+        "column": 6
+      }
+    }
+  },
+  {
+    "sequence": 18,
+    "resourceId": "application.catalog.workload.main",
+    "fieldPath": [
+      "environment"
+    ],
+    "action": "module-assigned",
+    "previous": null,
+    "current": {
+      "APP_ENV": "base"
+    },
+    "owner": {
+      "kind": "module",
+      "name": "HttpService"
+    },
+    "source": {
+      "sourceName": "modules/http-service/module.mosaic",
+      "start": {
+        "offset": 505,
+        "line": 22,
+        "column": 9
+      },
+      "end": {
+        "offset": 536,
+        "line": 22,
+        "column": 40
+      }
+    }
+  },
+  {
+    "sequence": 19,
+    "resourceId": "application.catalog.workload.main",
+    "fieldPath": [
+      "ports"
+    ],
+    "action": "module-assigned",
+    "previous": null,
+    "current": [
+      {
+        "containerPort": 8080,
+        "name": "http"
+      }
+    ],
+    "owner": {
+      "kind": "module",
+      "name": "HttpService"
+    },
+    "source": {
+      "sourceName": "modules/http-service/module.mosaic",
+      "start": {
+        "offset": 774,
+        "line": 29,
+        "column": 9
+      },
+      "end": {
+        "offset": 823,
+        "line": 29,
+        "column": 58
+      }
+    }
+  },
+  {
+    "sequence": 20,
+    "resourceId": "application.catalog.expose.http",
+    "action": "resource-created",
+    "previous": null,
+    "current": {
+      "labels": {
+        "app.kubernetes.io/name": "catalog-api",
+        "something.com/owner": "catalog-team"
+      },
+      "name": "catalog-api",
+      "ports": [
+        {
+          "name": "http",
+          "port": 80,
+          "targetPort": 8080
+        }
+      ],
+      "workload": {
+        "$reference": {
+          "target": "application.catalog.workload.main",
+          "type": "workload",
+          "source": {
+            "sourceName": "",
+            "start": {
+              "offset": 0,
+              "line": 0,
+              "column": 0
+            },
+            "end": {
+              "offset": 0,
+              "line": 0,
+              "column": 0
+            }
+          }
+        }
+      }
+    },
+    "owner": {
+      "kind": "module",
+      "name": "HttpService"
+    },
+    "source": {
+      "sourceName": "modules/http-service/module.mosaic",
+      "start": {
+        "offset": 835,
+        "line": 32,
+        "column": 5
+      },
+      "end": {
+        "offset": 1106,
+        "line": 40,
+        "column": 6
+      }
+    }
+  },
+  {
+    "sequence": 21,
+    "resourceId": "application.catalog.expose.http",
+    "fieldPath": [
+      "name"
+    ],
+    "action": "input-supplied",
+    "previous": null,
+    "current": "catalog-api",
+    "owner": {
+      "kind": "application",
+      "name": "catalog"
+    },
+    "source": {
+      "sourceName": "applications/catalog-api.mosaic",
+      "start": {
+        "offset": 33,
+        "line": 2,
+        "column": 5
+      },
+      "end": {
+        "offset": 53,
+        "line": 2,
+        "column": 25
+      }
+    }
+  },
+  {
+    "sequence": 22,
+    "resourceId": "application.catalog.expose.http",
+    "fieldPath": [
+      "name"
+    ],
+    "action": "module-assigned",
+    "previous": null,
+    "current": "catalog-api",
+    "owner": {
+      "kind": "module",
+      "name": "HttpService"
+    },
+    "source": {
+      "sourceName": "modules/http-service/module.mosaic",
+      "start": {
+        "offset": 859,
+        "line": 33,
+        "column": 9
+      },
+      "end": {
+        "offset": 876,
+        "line": 33,
+        "column": 26
+      }
+    }
+  },
+  {
+    "sequence": 23,
+    "resourceId": "application.catalog.expose.http",
+    "fieldPath": [
+      "workload"
+    ],
+    "action": "module-assigned",
+    "previous": null,
+    "current": {
+      "$reference": {
+        "target": "application.catalog.workload.main",
+        "type": "workload",
+        "source": {
+          "sourceName": "",
+          "start": {
+            "offset": 0,
+            "line": 0,
+            "column": 0
+          },
+          "end": {
+            "offset": 0,
+            "line": 0,
+            "column": 0
+          }
+        }
+      }
+    },
+    "owner": {
+      "kind": "module",
+      "name": "HttpService"
+    },
+    "source": {
+      "sourceName": "modules/http-service/module.mosaic",
+      "start": {
+        "offset": 885,
+        "line": 34,
+        "column": 9
+      },
+      "end": {
+        "offset": 909,
+        "line": 34,
+        "column": 33
+      }
+    }
+  },
+  {
+    "sequence": 24,
+    "resourceId": "application.catalog.expose.http",
+    "fieldPath": [
+      "ports"
+    ],
+    "action": "module-assigned",
+    "previous": null,
+    "current": [
+      {
+        "name": "http",
+        "port": 80,
+        "targetPort": 8080
+      }
+    ],
+    "owner": {
+      "kind": "module",
+      "name": "HttpService"
+    },
+    "source": {
+      "sourceName": "modules/http-service/module.mosaic",
+      "start": {
+        "offset": 918,
+        "line": 35,
+        "column": 9
+      },
+      "end": {
+        "offset": 975,
+        "line": 35,
+        "column": 66
+      }
+    }
+  },
+  {
+    "sequence": 25,
+    "resourceId": "application.catalog.workload.main",
+    "fieldPath": [
+      "replicas"
+    ],
+    "action": "variant-set",
+    "previous": 1,
+    "current": 3,
+    "owner": {
+      "kind": "variant",
+      "name": "production"
+    },
+    "source": {
+      "sourceName": "variants/prod.mosaic",
+      "start": {
+        "offset": 25,
+        "line": 2,
+        "column": 5
+      },
+      "end": {
+        "offset": 63,
+        "line": 2,
+        "column": 43
+      }
+    }
+  },
+  {
+    "sequence": 26,
+    "resourceId": "application.catalog.workload.main",
+    "fieldPath": [
+      "labels"
+    ],
+    "action": "variant-set",
+    "previous": {
+      "app.kubernetes.io/component": "api",
+      "app.kubernetes.io/managed-by": "mosaic",
+      "app.kubernetes.io/name": "catalog-api",
+      "something.com/owner": "catalog-team"
+    },
+    "current": {
+      "app.kubernetes.io/component": "api",
+      "app.kubernetes.io/managed-by": "mosaic",
+      "app.kubernetes.io/name": "catalog-api",
+      "something.com/deployment-tier": "production",
+      "something.com/owner": "catalog-team"
+    },
+    "owner": {
+      "kind": "variant",
+      "name": "production"
+    },
+    "source": {
+      "sourceName": "variants/prod.mosaic",
+      "start": {
+        "offset": 68,
+        "line": 3,
+        "column": 5
+      },
+      "end": {
+        "offset": 165,
+        "line": 5,
+        "column": 6
+      }
+    }
+  },
+  {
+    "sequence": 27,
+    "resourceId": "application.catalog.capability.autoscaling",
+    "action": "capability-enabled",
+    "previous": null,
+    "current": {
+      "cpu": {
+        "averageUtilisation": 65
+      },
+      "maximumReplicas": 12,
+      "minimumReplicas": 3,
+      "target": {
+        "$reference": {
+          "target": "application.catalog.workload.main",
+          "source": {
+            "sourceName": "",
+            "start": {
+              "offset": 0,
+              "line": 0,
+              "column": 0
+            },
+            "end": {
+              "offset": 0,
+              "line": 0,
+              "column": 0
+            }
+          }
+        }
+      }
+    },
+    "owner": {
+      "kind": "variant",
+      "name": "production"
+    },
+    "source": {
+      "sourceName": "variants/prod.mosaic",
+      "start": {
+        "offset": 170,
+        "line": 6,
+        "column": 5
+      },
+      "end": {
+        "offset": 352,
+        "line": 13,
+        "column": 6
+      }
+    }
+  },
+  {
+    "sequence": 28,
+    "resourceId": "application.catalog.capability.disruptionProtection",
+    "action": "capability-enabled",
+    "previous": null,
+    "current": {
+      "minimumAvailable": 2,
+      "target": {
+        "$reference": {
+          "target": "application.catalog.workload.main",
+          "source": {
+            "sourceName": "",
+            "start": {
+              "offset": 0,
+              "line": 0,
+              "column": 0
+            },
+            "end": {
+              "offset": 0,
+              "line": 0,
+              "column": 0
+            }
+          }
+        }
+      }
+    },
+    "owner": {
+      "kind": "variant",
+      "name": "production"
+    },
+    "source": {
+      "sourceName": "variants/prod.mosaic",
+      "start": {
+        "offset": 357,
+        "line": 14,
+        "column": 5
+      },
+      "end": {
+        "offset": 460,
+        "line": 17,
+        "column": 6
+      }
+    }
+  }
+]

@@ -1,0 +1,11 @@
+variant staging {
+    set catalog.workload.main.replicas = 2
+    enable autoscaling {
+        target = catalog.workload.main
+        minimumReplicas = 2
+        maximumReplicas = 6
+        cpu {
+            averageUtilisation = 70
+        }
+    }
+}

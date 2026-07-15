@@ -1,0 +1,833 @@
+// Package compiler implements Mosaic's explicit deterministic compiler pipeline.
+package compiler
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/binary"
+	"encoding/hex"
+	"fmt"
+	"sort"
+	"strings"
+
+	"github.com/kdihalas/mosaic/pkg/capability"
+	"github.com/kdihalas/mosaic/pkg/diagnostics"
+	"github.com/kdihalas/mosaic/pkg/graph"
+	"github.com/kdihalas/mosaic/pkg/module"
+	"github.com/kdihalas/mosaic/pkg/policy"
+	"github.com/kdihalas/mosaic/pkg/project"
+	"github.com/kdihalas/mosaic/pkg/provenance"
+	"github.com/kdihalas/mosaic/pkg/semantic"
+	"github.com/kdihalas/mosaic/pkg/semantic/symbols"
+	"github.com/kdihalas/mosaic/pkg/syntax/ast"
+	"github.com/kdihalas/mosaic/pkg/syntax/lexer"
+	"github.com/kdihalas/mosaic/pkg/syntax/parser"
+	"github.com/kdihalas/mosaic/pkg/transform"
+	"github.com/kdihalas/mosaic/pkg/value"
+)
+
+type PhaseName string
+
+const (
+	PhaseLex               PhaseName = "lex"
+	PhaseParse             PhaseName = "parse"
+	PhaseResolveNames      PhaseName = "resolve-names"
+	PhaseCheckTypes        PhaseName = "check-types"
+	PhaseInstantiate       PhaseName = "instantiate"
+	PhaseBuildGraph        PhaseName = "build-graph"
+	PhaseApplyVariants     PhaseName = "apply-variants"
+	PhaseApplyTransforms   PhaseName = "apply-transforms"
+	PhaseDetectConflicts   PhaseName = "detect-conflicts"
+	PhaseResolveConflicts  PhaseName = "resolve-conflicts"
+	PhaseResolveReferences PhaseName = "resolve-references"
+	PhaseValidateGraph     PhaseName = "validate-graph"
+	PhaseEvaluatePolicies  PhaseName = "evaluate-policies"
+)
+
+type Limits struct {
+	MaxDiagnostics       int
+	MaxParseDepth        int
+	MaxExpressionDepth   int
+	MaxModuleDepth       int
+	MaxResources         int
+	MaxTransformOps      int
+	MaxPolicyEvaluations int
+}
+type NewOptions struct{ Limits Limits }
+type Options struct {
+	Environment    string
+	MaxDiagnostics int
+}
+type Metadata struct {
+	Project         string      `json:"project"`
+	CompilerVersion string      `json:"compilerVersion"`
+	LanguageVersion string      `json:"languageVersion"`
+	SourceDigest    string      `json:"sourceDigest,omitempty"`
+	TargetOptions   value.Value `json:"targetOptions"`
+}
+type Result struct {
+	Environment  string
+	Graph        *graph.Graph
+	Provenance   *provenance.Store
+	PolicyReport policy.Report
+	Metadata     Metadata
+	ParsedFiles  []*ast.File
+	Analysis     *semantic.Analysis
+	Instances    []module.Instance
+	Conflicts    []transform.Conflict
+	Snapshots    map[PhaseName]*graph.Graph
+}
+type Compiler struct{ limits Limits }
+
+func New(o NewOptions) *Compiler {
+	l := o.Limits
+	if l.MaxDiagnostics == 0 {
+		l.MaxDiagnostics = 100
+	}
+	if l.MaxParseDepth == 0 {
+		l.MaxParseDepth = 256
+	}
+	if l.MaxExpressionDepth == 0 {
+		l.MaxExpressionDepth = 256
+	}
+	if l.MaxModuleDepth == 0 {
+		l.MaxModuleDepth = 64
+	}
+	if l.MaxResources == 0 {
+		l.MaxResources = 100000
+	}
+	if l.MaxTransformOps == 0 {
+		l.MaxTransformOps = 500000
+	}
+	if l.MaxPolicyEvaluations == 0 {
+		l.MaxPolicyEvaluations = 1000000
+	}
+	return &Compiler{l}
+}
+
+type program struct {
+	files      []*ast.File
+	modules    map[string]*ast.ModuleDeclaration
+	apps       map[string]*ast.ModuleUseDeclaration
+	variants   map[string]*ast.VariantDeclaration
+	transforms map[string]*ast.TransformDeclaration
+	envs       map[string]*ast.EnvironmentDeclaration
+	policies   map[string]*ast.PolicyDeclaration
+	tests      map[string]*ast.TestDeclaration
+	analysis   *semantic.Analysis
+}
+
+func (c *Compiler) Analyze(ctx context.Context, p *project.Project) (*semantic.Analysis, diagnostics.List) {
+	pg, d := c.load(ctx, p)
+	if pg == nil {
+		return nil, d
+	}
+	return pg.analysis, d
+}
+func (c *Compiler) load(ctx context.Context, p *project.Project) (*program, diagnostics.List) {
+	pg := &program{modules: map[string]*ast.ModuleDeclaration{}, apps: map[string]*ast.ModuleUseDeclaration{}, variants: map[string]*ast.VariantDeclaration{}, transforms: map[string]*ast.TransformDeclaration{}, envs: map[string]*ast.EnvironmentDeclaration{}, policies: map[string]*ast.PolicyDeclaration{}, tests: map[string]*ast.TestDeclaration{}}
+	table := symbols.New()
+	var ds diagnostics.List
+	for _, f := range p.Files {
+		select {
+		case <-ctx.Done():
+			return nil, append(ds, diag("CMP001", ctx.Err().Error(), diagnostics.Span{}))
+		default:
+		}
+		lr := lexer.Lex(f, lexer.Options{MaxDiagnostics: c.limits.MaxDiagnostics})
+		ds = append(ds, lr.Diagnostics...)
+		pr := parser.Parse(f, lr.Tokens, parser.Options{MaxDiagnostics: c.limits.MaxDiagnostics, MaxParseDepth: c.limits.MaxParseDepth, MaxExpressionDepth: c.limits.MaxExpressionDepth})
+		ds = append(ds, pr.Diagnostics...)
+		pg.files = append(pg.files, pr.File)
+		for _, d := range pr.File.Declarations {
+			var k symbols.Kind
+			var n string
+			switch x := d.(type) {
+			case *ast.ModuleDeclaration:
+				k, n = symbols.Module, x.Name
+				pg.modules[n] = x
+			case *ast.ModuleUseDeclaration:
+				k, n = symbols.Application, x.Alias
+				pg.apps[n] = x
+			case *ast.VariantDeclaration:
+				k, n = symbols.Variant, x.Name
+				pg.variants[n] = x
+			case *ast.TransformDeclaration:
+				k, n = symbols.Transform, x.Name
+				pg.transforms[n] = x
+			case *ast.EnvironmentDeclaration:
+				k, n = symbols.Environment, x.Name
+				pg.envs[n] = x
+			case *ast.PolicyDeclaration:
+				k, n = symbols.Policy, x.Name
+				pg.policies[n] = x
+			case *ast.TestDeclaration:
+				k, n = symbols.Test, x.Name
+				pg.tests[n] = x
+			case *ast.TypeDeclaration:
+				k, n = symbols.Type, x.Name
+			case *ast.EnumDeclaration:
+				k, n = symbols.Enum, x.Name
+			}
+			if n != "" {
+				s := symbols.Symbol{ID: string(k) + "." + n, Name: n, Kind: k, Source: d.Span()}
+				if !table.Add(s) {
+					ds = append(ds, diag("SEM001", "duplicate declaration `"+n+"`", d.Span()))
+				}
+			}
+		}
+	}
+	for _, a := range pg.apps {
+		if _, ok := pg.modules[a.Module]; !ok {
+			ds = append(ds, diag("SEM003", "unknown module `"+a.Module+"`", a.Span()))
+		}
+	}
+	pg.analysis = &semantic.Analysis{Files: pg.files, Symbols: table.List()}
+	return pg, ds.Sorted()
+}
+func (c *Compiler) Compile(ctx context.Context, p *project.Project, o Options) (*Result, diagnostics.List) {
+	pg, ds := c.load(ctx, p)
+	if pg == nil || ds.HasErrors() {
+		return nil, ds
+	}
+	env, ok := pg.envs[o.Environment]
+	if !ok {
+		return nil, append(ds, diag("SEM004", "unknown environment `"+o.Environment+"`", diagnostics.Span{SourceName: o.Environment}))
+	}
+	g := graph.New()
+	prov := provenance.New()
+	r := &Result{Environment: o.Environment, Graph: g, Provenance: prov, Metadata: Metadata{Project: p.Name, CompilerVersion: "0.1.0", LanguageVersion: "v1alpha1", SourceDigest: sourceDigest(p), TargetOptions: value.Object(nil)}, ParsedFiles: pg.files, Analysis: pg.analysis, Snapshots: map[PhaseName]*graph.Graph{}}
+	for _, s := range env.Body {
+		if b, ok := s.(*ast.BlockDeclaration); ok && b.Name == "target" {
+			if v, e := statementsObject(b.Body, semantic.Context{}); e == nil {
+				r.Metadata.TargetOptions = v
+			}
+		}
+	}
+	aliases := envUses(env)
+	sort.Strings(aliases)
+	for _, alias := range aliases {
+		app, yes := pg.apps[alias]
+		if !yes {
+			ds = append(ds, diag("SEM005", "unknown application `"+alias+"`", env.Span()))
+			continue
+		}
+		m := pg.modules[app.Module]
+		inst, e := c.instantiate(g, prov, m, app)
+		if e != nil {
+			ds = append(ds, diag("CMP010", e.Error(), app.Span()))
+		} else {
+			r.Instances = append(r.Instances, inst)
+		}
+	}
+	r.Snapshots[PhaseBuildGraph] = g.Snapshot()
+	if len(g.List()) > c.limits.MaxResources {
+		ds = append(ds, diag("CMP011", "resource limit exceeded", env.Span()))
+	}
+	writes := map[string][]transform.FieldWrite{}
+	applied := envApplies(env)
+	sort.Strings(applied)
+	ops := 0
+	for _, name := range applied {
+		var body []ast.Statement
+		var ownerKind string
+		if v := pg.variants[name]; v != nil {
+			body = v.Body
+			ownerKind = "variant"
+		} else if t := pg.transforms[name]; t != nil {
+			body = t.Body
+			ownerKind = "transform"
+		} else {
+			ds = append(ds, diag("SEM006", "unknown variant or transform `"+name+"`", env.Span()))
+			continue
+		}
+		for _, s := range body {
+			ops++
+			if ops > c.limits.MaxTransformOps {
+				ds = append(ds, diag("CMP012", "transform operation limit exceeded", s.Span()))
+				break
+			}
+			ws, err := c.applyStatement(g, prov, s, provenance.Owner{Kind: ownerKind, Name: name}, false)
+			if err != nil {
+				ds = append(ds, diag("TRN001", err.Error(), s.Span()))
+			}
+			for _, w := range ws {
+				k := string(w.ResourceID) + "\x00" + w.Path.String()
+				writes[k] = append(writes[k], w)
+			}
+		}
+	}
+	r.Snapshots[PhaseApplyVariants] = g.Snapshot()
+	r.Snapshots[PhaseApplyTransforms] = g.Snapshot()
+	for _, group := range writes {
+		if conflict(group) {
+			sort.Slice(group, func(i, j int) bool { return group[i].Owner.Name < group[j].Owner.Name })
+			r.Conflicts = append(r.Conflicts, transform.Conflict{ResourceID: group[0].ResourceID, Path: group[0].Path, Writes: group})
+		}
+	}
+	for _, s := range env.Body {
+		if _, ok := s.(*ast.ResolveStatement); ok {
+			ws, e := c.applyStatement(g, prov, s, provenance.Owner{Kind: "environment", Name: env.Name}, true)
+			if e != nil {
+				ds = append(ds, diag("TRN002", e.Error(), s.Span()))
+				continue
+			}
+			for _, w := range ws {
+				for i := range r.Conflicts {
+					if r.Conflicts[i].ResourceID == w.ResourceID && r.Conflicts[i].Path.String() == w.Path.String() {
+						r.Conflicts[i].Resolved = true
+					}
+				}
+			}
+		}
+	}
+	for _, x := range r.Conflicts {
+		if !x.Resolved {
+			ds = append(ds, diag("SEM042", "conflicting assignments to "+string(x.ResourceID)+"."+x.Path.String(), x.Writes[0].Source))
+		}
+	}
+	r.Snapshots[PhaseResolveConflicts] = g.Snapshot()
+	c.resolveReferences(g, &ds)
+	r.Snapshots[PhaseResolveReferences] = g.Snapshot()
+	if e := g.Validate(); e != nil {
+		ds = append(ds, diag("GRF001", e.Error(), env.Span()))
+	}
+	r.PolicyReport = c.policies(pg, env, g, prov, &ds)
+	r.Snapshots[PhaseEvaluatePolicies] = g.Snapshot()
+	r.Graph = g.Snapshot()
+	return r, ds.Sorted()
+}
+func (c *Compiler) instantiate(g *graph.Graph, ps *provenance.Store, m *ast.ModuleDeclaration, a *ast.ModuleUseDeclaration) (module.Instance, error) {
+	inputs, err := statementsObject(a.Body, semantic.Context{})
+	if err != nil {
+		return module.Instance{}, err
+	}
+	ctx := semantic.Context{Values: map[string]value.Value{"input": inputs}}
+	ctx.ResolvePath = func(p []string) (value.Value, bool) {
+		if len(p) > 0 && p[0] == "input" {
+			v := inputs
+			for _, k := range p[1:] {
+				var ok bool
+				v, ok = v.Get(k)
+				if !ok {
+					return value.Value{}, false
+				}
+			}
+			return v, true
+		}
+		if len(p) == 2 {
+			return value.Reference(value.ReferenceValue{Target: "application." + a.Alias + "." + p[0] + "." + p[1], Type: p[0]}), true
+		}
+		return value.Value{}, false
+	}
+	inst := module.Instance{Module: m.Name, Alias: a.Alias}
+	for _, s := range m.Body {
+		rd, ok := s.(*ast.ResourceDeclaration)
+		if !ok {
+			continue
+		}
+		fields, e := statementsObject(rd.Body, ctx)
+		if e != nil {
+			return inst, e
+		}
+		id := graph.ResourceID("application." + a.Alias + "." + rd.Kind + "." + rd.Name)
+		name := rd.Name
+		if n, ok := fields.Get("name"); ok {
+			if x, yes := n.StringValue(); yes {
+				name = x
+			}
+		}
+		r := graph.Resource{ID: id, Type: coreType(rd.Kind), Name: name, Fields: fields, Metadata: graph.Metadata{Module: m.Name, Source: rd.Span(), Exported: true}}
+		if v, ok := fields.Get("labels"); ok {
+			r.Labels = stringMap(v)
+		}
+		if v, ok := fields.Get("annotations"); ok {
+			r.Annotations = stringMap(v)
+		}
+		if e := g.Add(r); e != nil {
+			return inst, e
+		}
+		inst.Resources = append(inst.Resources, id)
+		ps.Add(provenance.Event{ResourceID: id, Action: provenance.ResourceCreated, Current: fields, Owner: provenance.Owner{Kind: "module", Name: m.Name}, Source: rd.Span()})
+		for _, st := range rd.Body {
+			as, ok := st.(*ast.AssignmentStatement)
+			if !ok {
+				continue
+			}
+			path, ok := semantic.Path(as.Target)
+			if !ok || len(path) != 1 {
+				continue
+			}
+			current, ok := fields.Get(path[0])
+			if !ok {
+				continue
+			}
+			if inputPath, yes := semantic.Path(as.Value); yes && len(inputPath) > 1 && inputPath[0] == "input" {
+				ps.Add(provenance.Event{ResourceID: id, FieldPath: graph.FieldPath{path[0]}, Action: provenance.InputSupplied, Current: current, Owner: provenance.Owner{Kind: "application", Name: a.Alias}, Source: inputSource(a, inputPath[1])})
+			}
+			ps.Add(provenance.Event{ResourceID: id, FieldPath: graph.FieldPath{path[0]}, Action: provenance.ModuleAssigned, Current: current, Owner: provenance.Owner{Kind: "module", Name: m.Name}, Source: as.Span()})
+		}
+	}
+	return inst, nil
+}
+func inputSource(a *ast.ModuleUseDeclaration, name string) diagnostics.Span {
+	for _, s := range a.Body {
+		if x, ok := s.(*ast.AssignmentStatement); ok {
+			if p, yes := semantic.Path(x.Target); yes && len(p) == 1 && p[0] == name {
+				return x.Span()
+			}
+		}
+	}
+	return a.Span()
+}
+func coreType(k string) graph.TypeName {
+	switch k {
+	case "config":
+		return "core.Config"
+	case "serviceAccount":
+		return "core.ServiceAccount"
+	case "workload":
+		return "core.Workload"
+	case "expose", "exposure":
+		return "core.Exposure"
+	default:
+		return graph.TypeName("core." + strings.ToUpper(k[:1]) + k[1:])
+	}
+}
+func statementsObject(ss []ast.Statement, c semantic.Context) (value.Value, error) {
+	m := map[string]value.Value{}
+	for _, s := range ss {
+		switch x := s.(type) {
+		case *ast.AssignmentStatement:
+			p, ok := semantic.Path(x.Target)
+			if k, q := x.Target.(*ast.StringLiteral); q {
+				p = []string{k.Value}
+				ok = true
+			}
+			if !ok || len(p) != 1 {
+				return value.Value{}, fmt.Errorf("object assignment must name one field")
+			}
+			if _, dup := m[p[0]]; dup {
+				return value.Value{}, fmt.Errorf("duplicate object field %s", p[0])
+			}
+			v, e := semantic.Evaluate(x.Value, c)
+			if e != nil {
+				return value.Value{}, e
+			}
+			m[p[0]] = v
+		case *ast.BlockDeclaration:
+			if _, dup := m[x.Name]; dup {
+				return value.Value{}, fmt.Errorf("duplicate object field %s", x.Name)
+			}
+			v, e := statementsObject(x.Body, c)
+			if e != nil {
+				return value.Value{}, e
+			}
+			m[x.Name] = v
+		}
+	}
+	return value.Object(m), nil
+}
+func stringMap(v value.Value) map[string]string {
+	m, ok := v.ObjectValue()
+	if !ok {
+		return nil
+	}
+	r := map[string]string{}
+	for k, x := range m {
+		if s, yes := x.StringValue(); yes {
+			r[k] = s
+		}
+	}
+	return r
+}
+func envUses(e *ast.EnvironmentDeclaration) []string {
+	var x []string
+	for _, s := range e.Body {
+		if u, ok := s.(*ast.UseStatement); ok {
+			x = append(x, u.Name)
+		}
+	}
+	return x
+}
+func envApplies(e *ast.EnvironmentDeclaration) []string {
+	var x []string
+	for _, s := range e.Body {
+		if a, ok := s.(*ast.ApplyStatement); ok {
+			x = append(x, a.Name)
+		}
+	}
+	return x
+}
+func op(s ast.Statement) (*ast.OperationStatement, bool) {
+	switch x := s.(type) {
+	case *ast.SetStatement:
+		v := ast.OperationStatement(*x)
+		return &v, true
+	case *ast.ReplaceStatement:
+		v := ast.OperationStatement(*x)
+		return &v, true
+	case *ast.DeleteStatement:
+		v := ast.OperationStatement(*x)
+		return &v, true
+	case *ast.AppendStatement:
+		v := ast.OperationStatement(*x)
+		return &v, true
+	case *ast.MergeStatement:
+		v := ast.OperationStatement(*x)
+		return &v, true
+	case *ast.AddStatement:
+		v := ast.OperationStatement(*x)
+		return &v, true
+	case *ast.EnableStatement:
+		v := ast.OperationStatement(*x)
+		return &v, true
+	case *ast.ResolveStatement:
+		v := ast.OperationStatement(*x)
+		return &v, true
+	}
+	return nil, false
+}
+func target(e ast.Expression) (graph.ResourceID, graph.FieldPath, error) {
+	p, ok := semantic.Path(e)
+	if !ok || len(p) < 3 {
+		return "", nil, fmt.Errorf("invalid resource target")
+	}
+	return graph.ResourceID("application." + p[0] + "." + p[1] + "." + p[2]), graph.FieldPath(p[3:]), nil
+}
+func (c *Compiler) applyStatement(g *graph.Graph, ps *provenance.Store, s ast.Statement, owner provenance.Owner, explicit bool) ([]transform.FieldWrite, error) {
+	o, ok := op(s)
+	if !ok {
+		return nil, nil
+	}
+	if o.Operation == "enable" {
+		body, e := statementsObject(o.Body, semantic.Context{ResolvePath: func(p []string) (value.Value, bool) {
+			id, path, err := targetPath(p)
+			if err != nil {
+				return value.Value{}, false
+			}
+			return value.Reference(value.ReferenceValue{Target: string(id), Field: path}), true
+		}})
+		if e != nil {
+			return nil, e
+		}
+		alias := ""
+		if t, ok := body.Get("target"); ok {
+			if ref, yes := t.ReferenceValue(); yes {
+				parts := strings.Split(ref.Target, ".")
+				if len(parts) > 1 {
+					alias = parts[1]
+				}
+			}
+		}
+		if alias == "" {
+			return nil, fmt.Errorf("capability requires target")
+		}
+		id := graph.ResourceID("application." + alias + ".capability." + o.Name)
+		typ := graph.TypeName("core.Autoscaling")
+		resourceName := alias + "-autoscaling"
+		if o.Name == capability.DisruptionProtection {
+			typ = "core.DisruptionProtection"
+			resourceName = alias + "-disruption-protection"
+		}
+		if t, ok := body.Get("target"); ok {
+			if ref, yes := t.ReferenceValue(); yes {
+				if targetRes, found := g.Get(graph.ResourceID(ref.Target)); found {
+					suffix := "autoscaling"
+					if o.Name == capability.DisruptionProtection {
+						suffix = "disruption-protection"
+					}
+					resourceName = targetRes.Name + "-" + suffix
+				}
+			}
+		}
+		r := graph.Resource{ID: id, Type: typ, Name: resourceName, Fields: body, Metadata: graph.Metadata{Source: s.Span(), Exported: true}}
+		if e := g.Add(r); e != nil {
+			return nil, e
+		}
+		ps.Add(provenance.Event{ResourceID: id, Action: provenance.CapabilityEnabled, Current: body, Owner: owner, Source: s.Span()})
+		return nil, nil
+	}
+	if o.Operation == "add" {
+		id, _, e := target(o.Target)
+		if e != nil {
+			return nil, e
+		}
+		body, e := statementsObject(o.Body, semantic.Context{})
+		if e != nil {
+			return nil, e
+		}
+		if o.Identity != "" {
+			body, _ = body.With("name", value.String(o.Identity))
+		}
+		field := o.Name + "s"
+		if o.Name == "port" {
+			field = "ports"
+		}
+		path := graph.FieldPath{field}
+		cur, _ := g.ReadField(id, path)
+		list, _ := cur.ListValue()
+		list = append(list, body)
+		next := value.List(list)
+		if e = g.SetField(id, path, next); e != nil {
+			return nil, e
+		}
+		ps.Add(provenance.Event{ResourceID: id, FieldPath: path, Action: provenance.TransformApplied, Current: next, Owner: owner, Source: s.Span()})
+		return []transform.FieldWrite{{ResourceID: id, Path: path, Operation: transform.Add, Value: body, Owner: owner, Source: s.Span()}}, nil
+	}
+	id, path, e := target(o.Target)
+	if e != nil {
+		return nil, e
+	}
+	prev, _ := g.ReadField(id, path)
+	var next value.Value
+	if o.Value != nil {
+		next, e = semantic.Evaluate(o.Value, semantic.Context{})
+		if e != nil {
+			return nil, e
+		}
+	} else if len(o.Body) > 0 {
+		next, e = statementsObject(o.Body, semantic.Context{})
+		if e != nil {
+			return nil, e
+		}
+	}
+	kind := transform.OperationKind(o.Operation)
+	switch o.Operation {
+	case "delete":
+		e = g.DeleteField(id, path)
+	case "append":
+		cur, _ := g.ReadField(id, path)
+		a, _ := cur.ListValue()
+		b, _ := next.ListValue()
+		a = append(a, b...)
+		next = value.List(a)
+		e = g.SetField(id, path, next)
+	case "merge":
+		cur, _ := g.ReadField(id, path)
+		cm, _ := cur.ObjectValue()
+		nm, _ := next.ObjectValue()
+		if cm == nil {
+			cm = map[string]value.Value{}
+		}
+		for k, v := range nm {
+			cm[k] = v
+		}
+		next = value.Object(cm)
+		e = g.SetField(id, path, next)
+	default:
+		e = g.SetField(id, path, next)
+	}
+	if e != nil {
+		return nil, e
+	}
+	action := provenance.TransformApplied
+	if owner.Kind == "variant" {
+		action = provenance.VariantSet
+	}
+	if explicit {
+		action = provenance.ConflictResolved
+	}
+	ps.Add(provenance.Event{ResourceID: id, FieldPath: path, Action: action, Previous: prev, Current: next, Owner: owner, Source: s.Span()})
+	if o.Operation == "merge" {
+		if m, ok := next.ObjectValue(); ok {
+			out := make([]transform.FieldWrite, 0, len(m))
+			for _, k := range next.Keys() {
+				out = append(out, transform.FieldWrite{ResourceID: id, Path: append(path.Clone(), k), Operation: kind, Value: m[k], Owner: owner, Source: s.Span(), Explicit: explicit})
+			}
+			return out, nil
+		}
+	}
+	return []transform.FieldWrite{{ResourceID: id, Path: path, Operation: kind, Value: next, Owner: owner, Source: s.Span(), Explicit: explicit}}, nil
+}
+
+func (c *Compiler) resolveReferences(g *graph.Graph, ds *diagnostics.List) {
+	for _, r := range g.List() {
+		walkReferences(r.Fields, func(ref value.ReferenceValue) {
+			target := graph.ResourceID(ref.Target)
+			tr, ok := g.Get(target)
+			if !ok {
+				*ds = append(*ds, diag("SEM020", "dangling reference to `"+ref.Target+"`", ref.Source))
+				return
+			}
+			if len(ref.Field) > 0 {
+				if _, ok := g.ReadField(target, graph.FieldPath(ref.Field)); !ok {
+					*ds = append(*ds, diag("SEM021", "referenced field does not exist", ref.Source))
+					return
+				}
+			}
+			_ = tr
+			_ = g.AddReference(r.ID, target)
+		})
+	}
+}
+func walkReferences(v value.Value, fn func(value.ReferenceValue)) {
+	if r, ok := v.ReferenceValue(); ok {
+		fn(r)
+		return
+	}
+	if a, ok := v.ListValue(); ok {
+		for _, x := range a {
+			walkReferences(x, fn)
+		}
+	}
+	if m, ok := v.ObjectValue(); ok {
+		for _, x := range m {
+			walkReferences(x, fn)
+		}
+	}
+}
+func targetPath(p []string) (graph.ResourceID, graph.FieldPath, error) {
+	if len(p) < 3 {
+		return "", nil, fmt.Errorf("invalid target")
+	}
+	return graph.ResourceID("application." + p[0] + "." + p[1] + "." + p[2]), graph.FieldPath(p[3:]), nil
+}
+func conflict(ws []transform.FieldWrite) bool {
+	if len(ws) < 2 {
+		return false
+	}
+	owners := map[string]value.Value{}
+	for _, w := range ws {
+		if v, ok := owners[w.Owner.Name]; ok && !v.Equal(w.Value) {
+			return true
+		}
+		owners[w.Owner.Name] = w.Value
+	}
+	if len(owners) < 2 {
+		return false
+	}
+	var first *value.Value
+	for _, v := range owners {
+		x := v
+		if first == nil {
+			first = &x
+		} else if !first.Equal(v) {
+			return true
+		}
+	}
+	return false
+}
+func (c *Compiler) policies(pg *program, e *ast.EnvironmentDeclaration, g *graph.Graph, ps *provenance.Store, ds *diagnostics.List) policy.Report {
+	selected := map[string]bool{}
+	for _, s := range e.Body {
+		if b, ok := s.(*ast.BlockDeclaration); ok && b.Name == "policies" {
+			for _, q := range b.Body {
+				if u, yes := q.(*ast.UseStatement); yes {
+					selected[u.Name] = true
+				}
+			}
+		}
+	}
+	if len(selected) == 0 {
+		for n := range pg.policies {
+			selected[n] = true
+		}
+	}
+	var report policy.Report
+	count := 0
+	names := make([]string, 0, len(selected))
+	for n := range selected {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	for _, n := range names {
+		pd := pg.policies[n]
+		if pd == nil {
+			*ds = append(*ds, diag("POL001", "unknown policy `"+n+"`", e.Span()))
+			continue
+		}
+		for _, st := range pd.Body {
+			sel, ok := st.(*ast.SelectStatement)
+			if !ok {
+				continue
+			}
+			for _, r := range g.List() {
+				if sel.Type != "Resource" && coreTypeName(sel.Type) != r.Type {
+					continue
+				}
+				count++
+				if count > c.limits.MaxPolicyEvaluations {
+					*ds = append(*ds, diag("POL010", "policy evaluation limit exceeded", pd.Span()))
+					return report
+				}
+				vals, _ := r.Fields.ObjectValue()
+				ctx := semantic.Context{Values: vals}
+				if sel.Where != nil {
+					v, er := semantic.Evaluate(sel.Where, ctx)
+					if er != nil {
+						continue
+					}
+					b, _ := v.BoolValue()
+					if !b {
+						continue
+					}
+				}
+				for _, rule := range sel.Body {
+					var cond ast.Expression
+					var rt policy.RuleType
+					var body []ast.Statement
+					switch x := rule.(type) {
+					case *ast.RequireStatement:
+						cond, body, rt = x.Condition, x.Body, policy.Require
+					case *ast.DenyStatement:
+						y := ast.RequireStatement(*x)
+						cond, body, rt = y.Condition, y.Body, policy.Deny
+					case *ast.WarnStatement:
+						y := ast.RequireStatement(*x)
+						cond, body, rt = y.Condition, y.Body, policy.Warn
+					default:
+						continue
+					}
+					v, er := semantic.Evaluate(cond, ctx)
+					if er != nil {
+						continue
+					}
+					b, _ := v.BoolValue()
+					violated := (rt == policy.Deny && b) || (rt != policy.Deny && !b)
+					if !violated {
+						continue
+					}
+					msg := "policy rule failed"
+					mv, _ := statementsObject(body, ctx)
+					if x, ok := mv.Get("message"); ok {
+						if s, yes := x.StringValue(); yes {
+							msg = s
+						}
+					}
+					sev := diagnostics.SeverityError
+					if rt == policy.Warn {
+						sev = diagnostics.SeverityWarning
+					}
+					report.Results = append(report.Results, policy.Result{Policy: n, Rule: rt, Severity: sev, ResourceID: r.ID, Message: msg, PolicySource: rule.Span(), ResourceSource: r.Metadata.Source})
+					*ds = append(*ds, diagnostics.Diagnostic{Code: "POL002", Severity: sev, Message: msg, Span: rule.Span(), Related: []diagnostics.Related{{Message: string(r.ID), Span: r.Metadata.Source}}})
+					ps.Add(provenance.Event{ResourceID: r.ID, Action: provenance.PolicyValidated, Owner: provenance.Owner{Kind: "policy", Name: n}, Source: rule.Span()})
+				}
+			}
+		}
+	}
+	report.Sort()
+	return report
+}
+func coreTypeName(s string) graph.TypeName {
+	if strings.HasPrefix(s, "core.") {
+		return graph.TypeName(s)
+	}
+	return graph.TypeName("core." + s)
+}
+func diag(code, msg string, s diagnostics.Span) diagnostics.Diagnostic {
+	return diagnostics.Diagnostic{Code: code, Severity: diagnostics.SeverityError, Message: msg, Span: s}
+}
+func sourceDigest(p *project.Project) string {
+	h := sha256.New()
+	var size [8]byte
+	for _, f := range p.Files {
+		binary.BigEndian.PutUint64(size[:], uint64(len(f.Name)))
+		h.Write(size[:])
+		h.Write([]byte(f.Name))
+		binary.BigEndian.PutUint64(size[:], uint64(len(f.Content)))
+		h.Write(size[:])
+		h.Write(f.Content)
+	}
+	return "sha256:" + hex.EncodeToString(h.Sum(nil))
+}

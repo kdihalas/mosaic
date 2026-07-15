@@ -1,0 +1,3 @@
+variant development {
+    set catalog.workload.main.replicas = 1
+}
