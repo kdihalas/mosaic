@@ -43,8 +43,8 @@ metadata:
 spec:
     ports:
         - name: http
-          port: "80"
-          targetPort: "8080"
+          port: 80
+          targetPort: 8080
     selector:
         app.kubernetes.io/name: catalog-api
 ---
@@ -64,7 +64,7 @@ metadata:
     name: catalog-api
     namespace: catalog-dev
 spec:
-    replicas: "1"
+    replicas: 1
     selector:
         matchLabels:
             app.kubernetes.io/name: catalog-api
@@ -83,6 +83,6 @@ spec:
                   image: ghcr.io/acme/catalog-api:1.4.0
                   name: catalog-api
                   ports:
-                    - containerPort: "8080"
+                    - containerPort: 8080
                       name: http
             serviceAccountName: catalog-api

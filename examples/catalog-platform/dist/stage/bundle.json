@@ -4,7 +4,7 @@
   "compilerVersion": "0.1.0",
   "sourceDigest": "sha256:45d01eee4c6563522811fc01bd7302e8c3c819b5b5fcfb47c0047e4e452a5b64",
   "graphDigest": "sha256:ee2b1513e4bd0f87e6203684ce60672a6c6b9b5bc698f8a9262c061b52e080d5",
-  "bundleDigest": "sha256:3c86e4e2bd5e4ab1c24f084a3391272c85ee41b552a7c47924686b3a4f98a927",
+  "bundleDigest": "sha256:e0f0472fb454c30af543c674b4510e244da4cdec18863298166838496517a276",
   "artifacts": [
     {
       "name": "graph.json",
@@ -19,7 +19,7 @@
     {
       "name": "kubernetes.yaml",
       "mediaType": "application/yaml",
-      "digest": "sha256:50b89a49b17e8b144af54f2eba5083bb3611bcf704ac769d7d98c67d8caf1ad8"
+      "digest": "sha256:8b5e2c3f9764fe9ab3f16f444e6eabc397ecf3905e5ad771116a7001b3192101"
     },
     {
       "name": "policy-report.json",

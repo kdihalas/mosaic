@@ -90,7 +90,7 @@ func (r *Renderer) Render(ctx context.Context, in renderer.RenderInput) (*render
 	var y bytes.Buffer
 	for i, x := range items {
 		objects[i] = x.object
-		b, e := yaml.Marshal(x.object)
+		b, e := marshalYAML(x.object)
 		if e != nil {
 			return nil, append(ds, diagnostics.Diagnostic{Code: "K8S005", Severity: diagnostics.SeverityError, Message: e.Error()})
 		}
@@ -102,6 +102,99 @@ func (r *Renderer) Render(ctx context.Context, in renderer.RenderInput) (*render
 	j, _ := json.MarshalIndent(map[string]any{"apiVersion": "v1", "kind": "List", "items": objects}, "", "  ")
 	j = append(j, '\n')
 	return &renderer.ArtifactSet{Files: map[string][]byte{"kubernetes.yaml": y.Bytes(), "kubernetes.json": j}, Metadata: map[string]string{"renderer": "kubernetes"}}, ds
+}
+
+// marshalYAML constructs scalar nodes explicitly. json.Number implements
+// Stringer, so passing it directly to yaml.v3 would incorrectly produce a
+// quoted string even though the Mosaic value is typed as an integer/decimal.
+func marshalYAML(v any) ([]byte, error) {
+	n, err := yamlNode(v)
+	if err != nil {
+		return nil, err
+	}
+	return yaml.Marshal(n)
+}
+func yamlNode(v any) (*yaml.Node, error) {
+	scalar := func(tag, text string) *yaml.Node { return &yaml.Node{Kind: yaml.ScalarNode, Tag: tag, Value: text} }
+	switch x := v.(type) {
+	case nil:
+		return scalar("!!null", "null"), nil
+	case string:
+		return scalar("!!str", x), nil
+	case bool:
+		if x {
+			return scalar("!!bool", "true"), nil
+		}
+		return scalar("!!bool", "false"), nil
+	case json.Number:
+		tag := "!!int"
+		if strings.ContainsAny(string(x), ".eE") {
+			tag = "!!float"
+		}
+		return scalar(tag, string(x)), nil
+	case int:
+		return scalar("!!int", fmt.Sprint(x)), nil
+	case int8:
+		return scalar("!!int", fmt.Sprint(x)), nil
+	case int16:
+		return scalar("!!int", fmt.Sprint(x)), nil
+	case int32:
+		return scalar("!!int", fmt.Sprint(x)), nil
+	case int64:
+		return scalar("!!int", fmt.Sprint(x)), nil
+	case uint:
+		return scalar("!!int", fmt.Sprint(x)), nil
+	case uint8:
+		return scalar("!!int", fmt.Sprint(x)), nil
+	case uint16:
+		return scalar("!!int", fmt.Sprint(x)), nil
+	case uint32:
+		return scalar("!!int", fmt.Sprint(x)), nil
+	case uint64:
+		return scalar("!!int", fmt.Sprint(x)), nil
+	case float32:
+		return scalar("!!float", fmt.Sprint(x)), nil
+	case float64:
+		return scalar("!!float", fmt.Sprint(x)), nil
+	case []any:
+		n := &yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq"}
+		for _, item := range x {
+			child, err := yamlNode(item)
+			if err != nil {
+				return nil, err
+			}
+			n.Content = append(n.Content, child)
+		}
+		return n, nil
+	case map[string]string:
+		keys := make([]string, 0, len(x))
+		for k := range x {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		n := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
+		for _, k := range keys {
+			n.Content = append(n.Content, scalar("!!str", k), scalar("!!str", x[k]))
+		}
+		return n, nil
+	case map[string]any:
+		keys := make([]string, 0, len(x))
+		for k := range x {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		n := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
+		for _, k := range keys {
+			child, err := yamlNode(x[k])
+			if err != nil {
+				return nil, err
+			}
+			n.Content = append(n.Content, scalar("!!str", k), child)
+		}
+		return n, nil
+	default:
+		return nil, fmt.Errorf("unsupported YAML value type %T", v)
+	}
 }
 func render(r graph.Resource, env, ns string, names map[string]string) (map[string]any, int, error) {
 	f := native(r.Fields)

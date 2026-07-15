@@ -43,8 +43,8 @@ metadata:
 spec:
     ports:
         - name: http
-          port: "80"
-          targetPort: "8080"
+          port: 80
+          targetPort: 8080
     selector:
         app.kubernetes.io/name: catalog-api
 ---
@@ -64,7 +64,7 @@ metadata:
     name: catalog-api
     namespace: catalog-prod
 spec:
-    replicas: "3"
+    replicas: 3
     selector:
         matchLabels:
             app.kubernetes.io/name: catalog-api
@@ -83,7 +83,7 @@ spec:
                   image: ghcr.io/acme/catalog-api:1.4.0
                   name: catalog-api
                   ports:
-                    - containerPort: "8080"
+                    - containerPort: 8080
                       name: http
             serviceAccountName: catalog-api
 ---
@@ -98,15 +98,15 @@ metadata:
     name: catalog-api-autoscaling
     namespace: catalog-prod
 spec:
-    maxReplicas: "12"
+    maxReplicas: 12
     metrics:
         - resource:
             name: cpu
             target:
-                averageUtilization: "65"
+                averageUtilization: 65
                 type: Utilization
           type: Resource
-    minReplicas: "3"
+    minReplicas: 3
     scaleTargetRef:
         apiVersion: apps/v1
         kind: Deployment
@@ -123,7 +123,7 @@ metadata:
     name: catalog-api-disruption-protection
     namespace: catalog-prod
 spec:
-    minAvailable: "2"
+    minAvailable: 2
     selector:
         matchLabels:
             app.kubernetes.io/name: catalog-api
