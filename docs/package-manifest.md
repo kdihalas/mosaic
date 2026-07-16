@@ -18,6 +18,10 @@ policies = ["requiredResources"]
 observability = { source = "oci://ghcr.io/acme/mosaic/observability", version = "^2.0.0" }
 ```
 
+The `[exports]` table may publish `capabilities` alongside modules, types,
+variants, transforms, policies, environments, and tests. Every type referenced
+by an exported capability input must also be public.
+
 Names are registry-independent lowercase slash-separated identities. Manifest
 versions are exact semantic versions. Exports are checked against parsed
 declarations, including the complete public type closure.

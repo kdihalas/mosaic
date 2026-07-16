@@ -72,6 +72,28 @@ func TestCanonicalManifestDigestIgnoresSetOrdering(t *testing.T) {
 	}
 }
 
+func TestCapabilityExportAndTypeClosure(t *testing.T) {
+	root := t.TempDir()
+	mustWrite(t, filepath.Join(root, ManifestName), `
+name = "acme/security"
+version = "1.0.0"
+language_version = "v1alpha1"
+sources = ["src/**/*.mosaic"]
+
+[exports]
+capabilities = ["NetworkIsolation"]
+types = ["NetworkIsolationInput"]
+`)
+	mustWrite(t, filepath.Join(root, "src", "package.mosaic"), `
+type NetworkIsolationInput { target: reference<Workload> enabled: bool = true }
+capability NetworkIsolation(input: NetworkIsolationInput) {}
+`)
+	pkg, ds := Load(context.Background(), root)
+	if pkg == nil || ds.HasErrors() {
+		t.Fatalf("capability package failed validation: pkg=%v ds=%v", pkg, ds)
+	}
+}
+
 func mustWrite(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

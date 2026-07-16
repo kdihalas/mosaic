@@ -8,9 +8,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/kdihalas/mosaic/pkg/capability"
 	"github.com/kdihalas/mosaic/pkg/compiler"
 	"github.com/kdihalas/mosaic/pkg/diagnostics"
 	"github.com/kdihalas/mosaic/pkg/graph"
+	"github.com/kdihalas/mosaic/pkg/module"
 	mosaicpackage "github.com/kdihalas/mosaic/pkg/package"
 	"github.com/kdihalas/mosaic/pkg/project"
 	"github.com/kdihalas/mosaic/pkg/renderer"
@@ -48,11 +50,18 @@ type BuildOptions struct{}
 type SchemaDocument struct {
 	FormatVersion string           `json:"formatVersion"`
 	Resources     []SchemaResource `json:"resources"`
+	Exports       []SchemaExport   `json:"exports,omitempty"`
 }
 
 type SchemaResource struct {
 	ID   graph.ResourceID `json:"id"`
 	Type graph.TypeName   `json:"type"`
+}
+
+type SchemaExport struct {
+	ID       graph.ResourceID `json:"id"`
+	Optional bool             `json:"optional,omitempty"`
+	Present  bool             `json:"present"`
 }
 
 type ExtensionPointsDocument struct {
@@ -108,7 +117,7 @@ func Build(r *compiler.Result, a renderer.ArtifactSet, _ BuildOptions) (*Bundle,
 		return nil, err
 	}
 	pol = append(pol, '\n')
-	schema, extensions, err := graphMetadata(r.Graph)
+	schema, extensions, err := graphMetadata(r.Graph, r.Instances, r.Capabilities)
 	if err != nil {
 		return nil, err
 	}
@@ -216,7 +225,7 @@ func sourceFiles(files []RecipeFile) []source.File {
 	return out
 }
 
-func graphMetadata(g *graph.Graph) ([]byte, []byte, error) {
+func graphMetadata(g *graph.Graph, instances []module.Instance, capabilities []capability.Instance) ([]byte, []byte, error) {
 	schema := SchemaDocument{FormatVersion: FormatVersion}
 	extensions := ExtensionPointsDocument{FormatVersion: FormatVersion}
 	for _, resource := range g.List() {
@@ -225,6 +234,17 @@ func graphMetadata(g *graph.Graph) ([]byte, []byte, error) {
 			ID: resource.ID, Extensions: resource.Metadata.Extensions, Protected: resource.Metadata.Protected,
 		})
 	}
+	for _, instance := range instances {
+		for _, exported := range instance.Exports {
+			schema.Exports = append(schema.Exports, SchemaExport{ID: exported.ResourceID, Optional: exported.Optional, Present: exported.Present})
+		}
+	}
+	for _, instance := range capabilities {
+		for _, exported := range instance.Exports {
+			schema.Exports = append(schema.Exports, SchemaExport{ID: exported.ResourceID, Optional: exported.Optional, Present: exported.Present})
+		}
+	}
+	sort.Slice(schema.Exports, func(i, j int) bool { return schema.Exports[i].ID < schema.Exports[j].ID })
 	schemaBytes, err := json.MarshalIndent(schema, "", "  ")
 	if err != nil {
 		return nil, nil, err

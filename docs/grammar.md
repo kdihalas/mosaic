@@ -5,12 +5,13 @@ that token stream directly. The core syntactic grammar is:
 
 ```ebnf
 file = { declaration } ;
-declaration = typeDecl | enumDecl | moduleDecl | useDecl | variantDecl
+declaration = typeDecl | enumDecl | moduleDecl | capabilityDecl | useDecl | variantDecl
             | environmentDecl | transformDecl | policyDecl | testDecl ;
 typeDecl = "type", identifier, "{", { field | requireStmt }, "}" ;
 field = identifier, ":", expression, [ "=", expression ] ;
 enumDecl = "enum", identifier, "{", { identifier, [","] }, "}" ;
 moduleDecl = "module", identifier, "(", identifier, ":", expression, ")", body ;
+capabilityDecl = "capability", identifier, "(", identifier, ":", expression, ")", body ;
 useDecl = "use", identifier, "as", identifier, body ;
 variantDecl = "variant", identifier, body ;
 environmentDecl = "environment", identifier, body ;
@@ -18,6 +19,7 @@ transformDecl = "transform", identifier, body ;
 policyDecl = "policy", identifier, body ;
 testDecl = "test", identifier, body ;
 body = "{", { statement, [","] }, "}" ;
+whenStmt = "when", "(", expression, ")", body ;
 expression = primary, { postfix | binaryOperator, expression } ;
 ```
 
@@ -52,10 +54,10 @@ blockComment       = "/*", blockCommentContent, "*/" ;
 Block comments nest using a depth counter. String characters exclude raw
 newlines, unescaped code points below U+0020, quote, and backslash.
 
-Hard keywords are `type`, `enum`, `module`, `resource`, `variant`,
+Hard keywords are `type`, `enum`, `module`, `capability`, `resource`, `variant`,
 `environment`, `transform`, `policy`, `test`, `use`, `apply`, `enable`,
 `select`, `where`, `resolve`, `require`, `deny`, `warn`, `export`, `protected`,
-`extension`, `for`, `in`, `if`, `else`, and `as`. The words `true`, `false`,
+`extension`, `for`, `in`, `when`, and `as`. The words `true`, `false`,
 and `null` have literal kinds. All matching is exact and case-sensitive.
 
 The two-character operators `->`, `==`, `!=`, `<=`, `>=`, `&&`, and `||` are

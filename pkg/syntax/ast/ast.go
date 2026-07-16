@@ -61,6 +61,12 @@ type ModuleDeclaration struct {
 	Parameter *Parameter  `json:"parameter,omitempty"`
 	Body      []Statement `json:"body"`
 }
+type CapabilityDeclaration struct {
+	Base
+	Name      string      `json:"name"`
+	Parameter *Parameter  `json:"parameter,omitempty"`
+	Body      []Statement `json:"body"`
+}
 type ModuleUseDeclaration struct {
 	Base
 	Module string      `json:"module"`
@@ -96,6 +102,7 @@ type TestDeclaration struct {
 func (*TypeDeclaration) declarationNode()        {}
 func (*EnumDeclaration) declarationNode()        {}
 func (*ModuleDeclaration) declarationNode()      {}
+func (*CapabilityDeclaration) declarationNode()  {}
 func (*ModuleUseDeclaration) declarationNode()   {}
 func (*VariantDeclaration) declarationNode()     {}
 func (*EnvironmentDeclaration) declarationNode() {}
@@ -159,6 +166,11 @@ type ProtectedStatement struct {
 	Base
 	Target Expression `json:"target"`
 }
+type WhenStatement struct {
+	Base
+	Condition Expression  `json:"condition"`
+	Body      []Statement `json:"body"`
+}
 type RequireStatement struct {
 	Base
 	Condition Expression  `json:"condition"`
@@ -194,6 +206,7 @@ func (*ResolveStatement) statementNode()    {}
 func (*ExportStatement) statementNode()     {}
 func (*ExtensionStatement) statementNode()  {}
 func (*ProtectedStatement) statementNode()  {}
+func (*WhenStatement) statementNode()       {}
 func (*RequireStatement) statementNode()    {}
 func (*DenyStatement) statementNode()       {}
 func (*WarnStatement) statementNode()       {}

@@ -10,6 +10,7 @@ import (
 	"github.com/kdihalas/mosaic/pkg/compiler"
 	"github.com/kdihalas/mosaic/pkg/diagnostics"
 	"github.com/kdihalas/mosaic/pkg/graph"
+	"github.com/kdihalas/mosaic/pkg/module"
 	"github.com/kdihalas/mosaic/pkg/project"
 	"github.com/kdihalas/mosaic/pkg/semantic"
 	"github.com/kdihalas/mosaic/pkg/syntax/ast"
@@ -76,16 +77,28 @@ func RunInput(ctx context.Context, input compiler.Input, c *compiler.Compiler) (
 			continue
 		}
 		passed := true
+		exports := map[graph.ResourceID]module.Export{}
+		for _, instance := range r.Instances {
+			for _, exported := range instance.Exports {
+				exports[exported.ResourceID] = exported
+			}
+		}
 		for _, s := range t.Body {
 			o, ok := s.(*ast.OperationStatement)
 			if !ok || o.Operation != "assert" || o.Value == nil {
 				continue
 			}
-			v, e := semantic.Evaluate(o.Value, semantic.Context{ResolvePath: func(path []string) (value.Value, bool) {
+			v, e := semantic.Evaluate(o.Value, semantic.Context{StrictPaths: true, ResolvePath: func(path []string) (value.Value, bool) {
 				if len(path) < 3 {
 					return value.Value{}, false
 				}
 				id := graph.ResourceID("application." + path[0] + "." + path[1] + "." + path[2])
+				if exported, known := exports[id]; known && exported.Optional {
+					return value.Value{}, false
+				}
+				if resource, found := r.Graph.Get(id); found && resource.Metadata.Module != "" && !resource.Metadata.Exported {
+					return value.Value{}, false
+				}
 				if len(path) == 3 {
 					if q, yes := r.Graph.Get(id); yes {
 						return q.Fields, true
@@ -93,6 +106,16 @@ func RunInput(ctx context.Context, input compiler.Input, c *compiler.Compiler) (
 					return value.Null(), true
 				}
 				return r.Graph.ReadField(id, graph.FieldPath(path[3:]))
+			}, PresentPath: func(path []string) (bool, bool) {
+				if len(path) != 3 {
+					return false, false
+				}
+				id := graph.ResourceID("application." + path[0] + "." + path[1] + "." + path[2])
+				exported, ok := exports[id]
+				if !ok || !exported.Optional {
+					return false, false
+				}
+				return exported.Present, true
 			}})
 			if e != nil {
 				passed = false

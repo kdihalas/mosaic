@@ -184,6 +184,13 @@ func ValidateExports(pkg *Package) diagnostics.List {
 			}
 		}
 	}
+	for _, name := range pkg.Manifest.Exports.Capabilities {
+		if d, ok := decls[name]; ok {
+			if capability, yes := d.node.(*ast.CapabilityDeclaration); yes && capability.Parameter != nil {
+				checkType("capability "+name, capability.Parameter.Type, map[string]bool{})
+			}
+		}
+	}
 	for _, name := range pkg.Manifest.Exports.Types {
 		if d, ok := decls[name]; ok {
 			if typ, yes := d.node.(*ast.TypeDeclaration); yes {
@@ -200,6 +207,8 @@ func declarationName(node ast.Declaration) (string, string) {
 	switch x := node.(type) {
 	case *ast.ModuleDeclaration:
 		return "module", x.Name
+	case *ast.CapabilityDeclaration:
+		return "capability", x.Name
 	case *ast.TypeDeclaration:
 		return "type", x.Name
 	case *ast.EnumDeclaration:
@@ -269,8 +278,8 @@ func ValidateManifest(m Manifest) diagnostics.List {
 			}
 		}
 	}
-	if len(m.Exports.Capabilities) > 0 || len(m.Exports.Schemas) > 0 {
-		add("PKG040", "capability and schema declarations are reserved but not supported by language v1alpha1")
+	if len(m.Exports.Schemas) > 0 {
+		add("PKG040", "schema declarations are reserved but not supported by language v1alpha1")
 	}
 	aliases := make([]string, 0, len(m.Dependencies))
 	for alias := range m.Dependencies {

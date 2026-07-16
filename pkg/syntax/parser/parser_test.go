@@ -79,6 +79,38 @@ environment prod { use catalog apply http.productionDefaults policies { use http
 		t.Fatalf("type path = %v", path)
 	}
 }
+
+func TestWhenStatement(t *testing.T) {
+	f := parse(t, `module M(input: Input) {
+    when(both(input.enabled, reverse(empty(input.name)))) {
+        workload "main" { name = input.name }
+    }
+}`)
+	module := f.Declarations[0].(*ast.ModuleDeclaration)
+	guard, ok := module.Body[0].(*ast.WhenStatement)
+	if !ok || len(guard.Body) != 1 {
+		t.Fatalf("guard = %#v", module.Body[0])
+	}
+}
+
+func TestCapabilityDeclarationAndQualifiedEnable(t *testing.T) {
+	f := parse(t, `
+capability Monitor(input: MonitorInput) { resource "monitor" { kind = "Monitor" } }
+variant production {
+    enable observability.Monitor as metrics {
+        target = app.workload.main
+    }
+}`)
+	capability := f.Declarations[0].(*ast.CapabilityDeclaration)
+	if capability.Name != "Monitor" || capability.Parameter == nil || capability.Parameter.Name != "input" {
+		t.Fatalf("capability = %#v", capability)
+	}
+	variant := f.Declarations[1].(*ast.VariantDeclaration)
+	op := (*ast.OperationStatement)(variant.Body[0].(*ast.EnableStatement))
+	if op.Name != "observability.Monitor" || op.Identity != "metrics" {
+		t.Fatalf("enable = %#v", op)
+	}
+}
 func FuzzParserNeverPanics(f *testing.F) {
 	f.Add([]byte(`environment dev {}`))
 	f.Fuzz(func(t *testing.T, b []byte) {

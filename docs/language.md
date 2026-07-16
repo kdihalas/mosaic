@@ -1,7 +1,7 @@
 # Language
 
-Mosaic files contain type and enum declarations, modules, top-level module
-instances, variants, transforms, environments, policies, and tests. Modules
+Mosaic files contain type and enum declarations, modules, capabilities,
+top-level module instances, variants, transforms, environments, policies, and tests. Modules
 produce named resources and typed references. Environments explicitly choose
 instances, variants/transforms, policies, and render-target options.
 
@@ -9,6 +9,14 @@ Transforms support `set`, `replace`, `delete`, `append`, `merge`, `add`, and
 `enable`; conflicts require an environment `resolve`. Policies select graph
 resources and use `require`, `deny`, or `warn`. Tests build an environment and
 evaluate assertions.
+
+Declarative construction and variants support boolean `when` guards. Exports
+inside guards are optional and are consumed safely with `present`. See
+[conditional construction](conditionals.md).
+
+Packages may export declarative capabilities that expand into ordinary graph
+resources when enabled by a variant. See
+[package-defined capabilities](capabilities.md).
 
 Object keys are strings. Identifier keys are shorthand; keys containing `/`,
 `.` or other punctuation use exact quoted syntax:

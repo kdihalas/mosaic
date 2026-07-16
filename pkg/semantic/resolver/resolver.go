@@ -22,6 +22,8 @@ func Resolve(files []*ast.File) (*semantic.Analysis, diagnostics.List) {
 				k, n = symbols.Enum, x.Name
 			case *ast.ModuleDeclaration:
 				k, n = symbols.Module, x.Name
+			case *ast.CapabilityDeclaration:
+				k, n = symbols.Capability, x.Name
 			case *ast.ModuleUseDeclaration:
 				k, n = symbols.Application, x.Alias
 			case *ast.VariantDeclaration:

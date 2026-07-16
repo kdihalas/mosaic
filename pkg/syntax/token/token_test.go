@@ -42,11 +42,12 @@ func TestClassifications(t *testing.T) {
 
 func TestLookupKeyword(t *testing.T) {
 	tests := map[string]token.Kind{
-		"module": token.KeywordModule, "Module": token.Identifier,
+		"module": token.KeywordModule, "capability": token.KeywordCapability, "Module": token.Identifier,
 		"moduleName": token.Identifier, "true": token.True,
 		"trueValue": token.Identifier, "null": token.Null,
 		"input": token.Identifier, "workload": token.Identifier,
 		"set": token.Identifier, "target": token.Identifier,
+		"when": token.KeywordWhen, "if": token.Identifier, "else": token.Identifier,
 	}
 	for text, want := range tests {
 		if got := token.LookupKeyword(text); got != want {
@@ -57,9 +58,9 @@ func TestLookupKeyword(t *testing.T) {
 
 func TestAllHardKeywords(t *testing.T) {
 	words := []string{
-		"type", "enum", "module", "resource", "variant", "environment", "transform", "policy", "test",
+		"type", "enum", "module", "capability", "resource", "variant", "environment", "transform", "policy", "test",
 		"use", "apply", "enable", "select", "where", "resolve", "require", "deny", "warn", "export",
-		"protected", "extension", "for", "in", "if", "else", "as",
+		"protected", "extension", "for", "in", "when", "as",
 	}
 	for index, word := range words {
 		want := token.Kind(int(token.KeywordType) + index)

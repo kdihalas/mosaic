@@ -110,6 +110,8 @@ func (p *parser) declaration() ast.Declaration {
 		return p.enumDecl()
 	case token.KeywordModule:
 		return p.moduleDecl()
+	case token.KeywordCapability:
+		return p.capabilityDecl()
 	case token.KeywordUse:
 		return p.useDecl()
 	case token.KeywordVariant, token.KeywordEnvironment, token.KeywordTransform, token.KeywordPolicy, token.KeywordTest:
@@ -205,6 +207,26 @@ func (p *parser) moduleDecl() ast.Declaration {
 	}
 	body, end := p.body()
 	return &ast.ModuleDeclaration{Base: base(start.Span, end), Name: name, Parameter: param, Body: body}
+}
+
+func (p *parser) capabilityDecl() ast.Declaration {
+	start := p.advance()
+	name := p.ident()
+	param := p.parameter()
+	body, end := p.body()
+	return &ast.CapabilityDeclaration{Base: base(start.Span, end), Name: name, Parameter: param, Body: body}
+}
+
+func (p *parser) parameter() *ast.Parameter {
+	if !p.match(token.LeftParen) {
+		return nil
+	}
+	s := p.cur()
+	n := p.ident()
+	p.expect(token.Colon, "`:`")
+	t := p.typeExpression()
+	e := p.expect(token.RightParen, "`)`").Span
+	return &ast.Parameter{Base: base(s.Span, e), Name: n, Type: t}
 }
 
 func (p *parser) typeExpression() ast.Expression {
@@ -315,6 +337,13 @@ func (p *parser) statement() ast.Statement {
 		p.advance()
 		e := p.expression(0)
 		return &ast.ProtectedStatement{Base: base(t.Span, e.Span()), Target: e}
+	case token.KeywordWhen:
+		p.advance()
+		p.expect(token.LeftParen, "`(`")
+		condition := p.expression(0)
+		p.expect(token.RightParen, "`)`")
+		body, end := p.body()
+		return &ast.WhenStatement{Base: base(t.Span, end), Condition: condition, Body: body}
 	case token.KeywordRequire:
 		return p.rule("require")
 	case token.KeywordDeny:
@@ -409,7 +438,10 @@ func (p *parser) operation(start token.Token, op string) ast.Statement {
 	x := ast.OperationStatement{Operation: op}
 	var end = start.Span
 	if op == "enable" {
-		x.Name = p.ident()
+		x.Name, end = p.qualifiedName()
+		if p.match(token.KeywordAs) {
+			x.Identity = p.ident()
+		}
 		if p.at(token.LeftBrace) {
 			x.Body, end = p.body()
 		}
@@ -687,7 +719,7 @@ func (p *parser) list() ast.Expression {
 func (p *parser) syncDeclaration() {
 	for !p.at(token.EOF) {
 		switch p.cur().Kind {
-		case token.KeywordType, token.KeywordEnum, token.KeywordModule, token.KeywordUse, token.KeywordVariant, token.KeywordEnvironment, token.KeywordTransform, token.KeywordPolicy, token.KeywordTest:
+		case token.KeywordType, token.KeywordEnum, token.KeywordModule, token.KeywordCapability, token.KeywordUse, token.KeywordVariant, token.KeywordEnvironment, token.KeywordTransform, token.KeywordPolicy, token.KeywordTest:
 			return
 		}
 		p.advance()

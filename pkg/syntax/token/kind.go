@@ -49,6 +49,7 @@ const (
 	KeywordType
 	KeywordEnum
 	KeywordModule
+	KeywordCapability
 	KeywordResource
 	KeywordVariant
 	KeywordEnvironment
@@ -69,8 +70,7 @@ const (
 	KeywordExtension
 	KeywordFor
 	KeywordIn
-	KeywordIf
-	KeywordElse
+	KeywordWhen
 	KeywordAs
 )
 
@@ -80,11 +80,11 @@ var kindNames = [...]string{
 	"LeftBrace", "RightBrace", "LeftParen", "RightParen", "LeftBracket", "RightBracket",
 	"Colon", "Comma", "Dot", "Question", "Equal", "EqualEqual", "Bang", "BangEqual",
 	"Less", "LessEqual", "Greater", "GreaterEqual", "AndAnd", "OrOr", "Plus", "Minus",
-	"Star", "Slash", "Arrow", "KeywordType", "KeywordEnum", "KeywordModule", "KeywordResource",
+	"Star", "Slash", "Arrow", "KeywordType", "KeywordEnum", "KeywordModule", "KeywordCapability", "KeywordResource",
 	"KeywordVariant", "KeywordEnvironment", "KeywordTransform", "KeywordPolicy", "KeywordTest",
 	"KeywordUse", "KeywordApply", "KeywordEnable", "KeywordSelect", "KeywordWhere", "KeywordResolve",
 	"KeywordRequire", "KeywordDeny", "KeywordWarn", "KeywordExport", "KeywordProtected",
-	"KeywordExtension", "KeywordFor", "KeywordIn", "KeywordIf", "KeywordElse", "KeywordAs",
+	"KeywordExtension", "KeywordFor", "KeywordIn", "KeywordWhen", "KeywordAs",
 }
 
 // String returns a stable developer-facing name for the kind.

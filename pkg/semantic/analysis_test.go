@@ -29,6 +29,51 @@ func TestListIndexExpression(t *testing.T) {
 	}
 }
 
+func TestPredicateFunctions(t *testing.T) {
+	tests := []struct {
+		expression string
+		want       bool
+	}{
+		{`gt(3, 2.5)`, true},
+		{`lt(2, 3)`, true},
+		{`eq(2, 2.0)`, true},
+		{`includes("api", ["web", "api"])`, true},
+		{`has("owner", { owner = "team" })`, true},
+		{`empty([])`, true},
+		{`zero(0.0)`, true},
+		{`any(false, false, true)`, true},
+		{`both(true, true, true)`, true},
+		{`reverse(false)`, true},
+	}
+	for _, test := range tests {
+		f := source.NewFile("predicate.mosaic", []byte(`test predicate { assert `+test.expression+` }`))
+		l := lexer.Lex(f, lexer.Options{})
+		p := parser.Parse(f, l.Tokens, parser.Options{})
+		if p.Diagnostics.HasErrors() {
+			t.Fatalf("%s: %v", test.expression, p.Diagnostics)
+		}
+		op := p.File.Declarations[0].(*ast.TestDeclaration).Body[0].(*ast.OperationStatement)
+		got, err := semantic.Evaluate(op.Value, semantic.Context{})
+		if err != nil {
+			t.Fatalf("%s: %v", test.expression, err)
+		}
+		value, ok := got.BoolValue()
+		if !ok || value != test.want {
+			t.Fatalf("%s = %v, want %v", test.expression, got, test.want)
+		}
+	}
+}
+
+func TestBooleanFunctionsShortCircuit(t *testing.T) {
+	f := source.NewFile("short.mosaic", []byte(`test predicate { assert both(false, unknown()) == false }`))
+	l := lexer.Lex(f, lexer.Options{})
+	p := parser.Parse(f, l.Tokens, parser.Options{})
+	op := p.File.Declarations[0].(*ast.TestDeclaration).Body[0].(*ast.OperationStatement)
+	if _, err := semantic.Evaluate(op.Value, semantic.Context{}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestPathSupportsQuotedStringKeys(t *testing.T) {
 	src := source.NewFile("test.mosaic", []byte(`environment prod {
     resolve app.workload.main.labels["app.example.com/tier"] = "local"

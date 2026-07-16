@@ -6,7 +6,9 @@ A bundle directory contains `bundle.json`, `graph.json`, `schema.json`,
 `build-recipe.json`, a path-independent snapshot of the verified source units
 needed to recompile baked-in variants without registry or filesystem access.
 
-`schema.json` inventories graph resource IDs and types.
+`schema.json` inventories graph resource IDs and types plus instantiated module
+exports. Optional exports record optionality and whether the resource is
+present in the built environment.
 `extension-points.json` records the fields that variants may change and the
 protected fields they must not change. Bundle derivation recompiles only the
 source embedded in `build-recipe.json`; it does not resolve new dependencies.

@@ -62,7 +62,8 @@ Mosaic currently supports:
 The following are intentionally not available: package scripts, plugins, Git or
 HTTP archive dependencies, multi-version loading, runtime compiler registry
 access, automatic signatures, and package catalogue services. Explicit
-re-exports and capability/schema exports are also not implemented yet.
+re-exports and schema exports are also not implemented yet. Package-defined
+capabilities are documented in [the language reference](../docs/capabilities.md).
 
 ## Conventions
 

@@ -10,6 +10,8 @@ func LookupKeyword(text string) Kind {
 		return KeywordEnum
 	case "module":
 		return KeywordModule
+	case "capability":
+		return KeywordCapability
 	case "resource":
 		return KeywordResource
 	case "variant":
@@ -50,10 +52,8 @@ func LookupKeyword(text string) Kind {
 		return KeywordFor
 	case "in":
 		return KeywordIn
-	case "if":
-		return KeywordIf
-	case "else":
-		return KeywordElse
+	case "when":
+		return KeywordWhen
 	case "as":
 		return KeywordAs
 	case "true":

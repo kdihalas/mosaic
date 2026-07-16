@@ -18,6 +18,8 @@ type Analysis struct {
 type Context struct {
 	Values      map[string]value.Value
 	ResolvePath func([]string) (value.Value, bool)
+	PresentPath func([]string) (bool, bool)
+	StrictPaths bool
 }
 
 func Path(e ast.Expression) ([]string, bool) {
@@ -69,6 +71,9 @@ func Evaluate(e ast.Expression, c Context) (value.Value, error) {
 			if v, ok := c.ResolvePath([]string{x.Name}); ok {
 				return v, nil
 			}
+		}
+		if c.StrictPaths {
+			return value.Value{}, fmt.Errorf("unknown path %s", x.Name)
 		}
 		return value.String(x.Name), nil
 	case *ast.MemberExpression:
@@ -161,6 +166,27 @@ func binary(x *ast.BinaryExpression, c Context) (value.Value, error) {
 	if e != nil {
 		return value.Value{}, e
 	}
+	if x.Operator == "&&" || x.Operator == "||" {
+		av, ok := a.BoolValue()
+		if !ok {
+			return value.Value{}, fmt.Errorf("left operand of %s must be bool", x.Operator)
+		}
+		if x.Operator == "&&" && !av {
+			return value.Bool(false), nil
+		}
+		if x.Operator == "||" && av {
+			return value.Bool(true), nil
+		}
+		b, err := Evaluate(x.Right, c)
+		if err != nil {
+			return value.Value{}, err
+		}
+		bv, ok := b.BoolValue()
+		if !ok {
+			return value.Value{}, fmt.Errorf("right operand of %s must be bool", x.Operator)
+		}
+		return value.Bool(bv), nil
+	}
 	b, e := Evaluate(x.Right, c)
 	if e != nil {
 		return value.Value{}, e
@@ -170,13 +196,6 @@ func binary(x *ast.BinaryExpression, c Context) (value.Value, error) {
 		return value.Bool(a.Equal(b)), nil
 	case "!=":
 		return value.Bool(!a.Equal(b)), nil
-	case "&&", "||":
-		av, _ := a.BoolValue()
-		bv, _ := b.BoolValue()
-		if x.Operator == "&&" {
-			return value.Bool(av && bv), nil
-		}
-		return value.Bool(av || bv), nil
 	}
 	if as, ok := a.StringValue(); ok {
 		bs, _ := b.StringValue()
@@ -227,6 +246,9 @@ func number(v value.Value) (*big.Rat, bool) {
 	return v.DecimalValue()
 }
 func call(x *ast.CallExpression, c Context) (value.Value, error) {
+	if name, ok := x.Callee.(*ast.IdentifierExpression); ok {
+		return globalCall(name.Name, x.Arguments, c)
+	}
 	m, ok := x.Callee.(*ast.MemberExpression)
 	if !ok {
 		return value.Value{}, fmt.Errorf("unknown function")
@@ -266,4 +288,143 @@ func call(x *ast.CallExpression, c Context) (value.Value, error) {
 		}
 	}
 	return value.Value{}, fmt.Errorf("unknown function %s", m.Member)
+}
+
+func globalCall(name string, arguments []ast.Expression, c Context) (value.Value, error) {
+	if name == "present" {
+		if len(arguments) != 1 {
+			return value.Value{}, fmt.Errorf("present requires one argument")
+		}
+		path, ok := Path(arguments[0])
+		if !ok || c.PresentPath == nil {
+			return value.Value{}, fmt.Errorf("present requires an optional resource path")
+		}
+		present, known := c.PresentPath(path)
+		if !known {
+			return value.Value{}, fmt.Errorf("present requires an optional exported resource")
+		}
+		return value.Bool(present), nil
+	}
+	if name == "any" || name == "both" {
+		if len(arguments) < 2 {
+			return value.Value{}, fmt.Errorf("%s requires at least two arguments", name)
+		}
+		for _, argument := range arguments {
+			v, err := Evaluate(argument, c)
+			if err != nil {
+				return value.Value{}, err
+			}
+			b, ok := v.BoolValue()
+			if !ok {
+				return value.Value{}, fmt.Errorf("%s arguments must be bool", name)
+			}
+			if name == "any" && b {
+				return value.Bool(true), nil
+			}
+			if name == "both" && !b {
+				return value.Bool(false), nil
+			}
+		}
+		return value.Bool(name == "both"), nil
+	}
+	values := make([]value.Value, len(arguments))
+	for i, argument := range arguments {
+		v, err := Evaluate(argument, c)
+		if err != nil {
+			return value.Value{}, err
+		}
+		values[i] = v
+	}
+	require := func(count int) error {
+		if len(values) != count {
+			return fmt.Errorf("%s requires %d arguments", name, count)
+		}
+		return nil
+	}
+	switch name {
+	case "gt", "lt":
+		if err := require(2); err != nil {
+			return value.Value{}, err
+		}
+		a, aok := number(values[0])
+		b, bok := number(values[1])
+		if !aok || !bok {
+			return value.Value{}, fmt.Errorf("%s arguments must be numeric", name)
+		}
+		if name == "gt" {
+			return value.Bool(a.Cmp(b) > 0), nil
+		}
+		return value.Bool(a.Cmp(b) < 0), nil
+	case "eq":
+		if err := require(2); err != nil {
+			return value.Value{}, err
+		}
+		if a, aok := number(values[0]); aok {
+			if b, bok := number(values[1]); bok {
+				return value.Bool(a.Cmp(b) == 0), nil
+			}
+		}
+		if values[0].Kind() != values[1].Kind() {
+			return value.Value{}, fmt.Errorf("eq arguments must have compatible types")
+		}
+		return value.Bool(values[0].Equal(values[1])), nil
+	case "includes":
+		if err := require(2); err != nil {
+			return value.Value{}, err
+		}
+		items, ok := values[1].ListValue()
+		if !ok {
+			return value.Value{}, fmt.Errorf("includes second argument must be a list")
+		}
+		for _, item := range items {
+			if item.Equal(values[0]) {
+				return value.Bool(true), nil
+			}
+		}
+		return value.Bool(false), nil
+	case "has":
+		if err := require(2); err != nil {
+			return value.Value{}, err
+		}
+		key, ok := values[0].StringValue()
+		if !ok || values[1].Kind() != value.KindObject {
+			return value.Value{}, fmt.Errorf("has requires a string key and map or object")
+		}
+		_, exists := values[1].Get(key)
+		return value.Bool(exists), nil
+	case "empty":
+		if err := require(1); err != nil {
+			return value.Value{}, err
+		}
+		if s, ok := values[0].StringValue(); ok {
+			return value.Bool(len(s) == 0), nil
+		}
+		if list, ok := values[0].ListValue(); ok {
+			return value.Bool(len(list) == 0), nil
+		}
+		if object, ok := values[0].ObjectValue(); ok {
+			return value.Bool(len(object) == 0), nil
+		}
+		return value.Value{}, fmt.Errorf("empty requires a string, list, map, or object")
+	case "zero":
+		if err := require(1); err != nil {
+			return value.Value{}, err
+		}
+		n, ok := number(values[0])
+		if !ok {
+			return value.Value{}, fmt.Errorf("zero requires a numeric argument")
+		}
+		return value.Bool(n.Sign() == 0), nil
+	case "reverse":
+		if err := require(1); err != nil {
+			return value.Value{}, err
+		}
+		b, ok := values[0].BoolValue()
+		if !ok {
+			return value.Value{}, fmt.Errorf("reverse requires a bool argument")
+		}
+		return value.Bool(!b), nil
+	default:
+		return value.Value{}, fmt.Errorf("unknown function %s", name)
+	}
 }

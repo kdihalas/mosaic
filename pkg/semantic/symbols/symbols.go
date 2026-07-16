@@ -12,6 +12,7 @@ const (
 	Type        Kind = "type"
 	Enum        Kind = "enum"
 	Module      Kind = "module"
+	Capability  Kind = "capability"
 	Application Kind = "application"
 	Variant     Kind = "variant"
 	Environment Kind = "environment"
